@@ -1,0 +1,19 @@
+identifier: Fjalar
+name: Fjalar
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - can
+  - adc
+  - gpio
+  - i2c
+  - spi
+  - usart
+  - watchdog
+  - backup_sram
+  - dma
+ram: 786
+flash: 1024

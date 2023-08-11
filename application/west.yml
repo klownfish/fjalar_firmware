@@ -1,0 +1,29 @@
+manifest:
+
+  defaults:
+    remote: zephyrproject
+
+  remotes:
+    - name: zephyrproject
+      url-base: https://github.com/zephyrproject-rtos
+
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject
+      revision: v3.4.0
+      import:
+        path-prefix: deps
+
+    - name: zscilib
+      remote: zephyrproject
+      revision: 34c3432e81085bb717e4871d21ca419ae0058ec5
+      path: deps/zscilib
+
+    - name: lvgl
+      remote: zephyrproject
+      revision: 9fe0a7cc0fb94bcbefc036ee27f1842f13e4e624
+      path: deps/mcuboot
+
+  self:
+    path: application

@@ -1,0 +1,66 @@
+/dts-v1/;
+
+#include <st/u5/stm32u575Xi.dtsi>
+#include <st/u5/stm32u575zitxq-pinctrl.dtsi>
+#include "fjalar.dtsi"
+
+/ {
+
+    model = "Aesir Fjalar flight controller";
+	compatible = "aesir,fjalar";
+
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	chosen {
+		zephyr,console = &uart4;
+		zephyr,shell-uart = &uart4;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,canbus = &can1;
+	};
+
+    aliases {
+		led0 = &ioled;
+		external-uart = &uart4;
+		data-flash = &w25q128;
+		gps-uart = &usart1;
+		buzzer = &pwm_buzzer;
+		lora = &lora;
+	};
+};
+
+&i2c1 {
+	lsm6dso32: lsm6dso32@6a {
+		status = "okay";
+		compatible = "st,lsm6dso32", "st,lsm6dso";
+		reg = <0x6a>;
+	};
+
+	ms5607: ms5607@77 {
+		status = "okay";
+		compatible = "meas,ms5607";
+		reg = <0x77>;
+	};
+};
+
+&spi1 {
+	lora: lora@0 {
+		compatible ="semtech,sx1276";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		status = "okay";
+		reset-gpios = <&gpioc 14 GPIO_ACTIVE_LOW>;
+		dio-gpios = <&gpioc 15 GPIO_ACTIVE_HIGH>;
+		power-amplifier-output = "pa-boost";
+	};
+
+	w25q128: w25q128@1 {
+		compatible ="jedec,spi-nor";
+		size = <0x8000000>;
+		reg = <1>;
+		spi-max-frequency = <10000000>;
+		status = "okay";
+		jedec-id = [ef 70 18];
+	};
+};

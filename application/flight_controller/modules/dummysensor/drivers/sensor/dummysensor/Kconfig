@@ -1,0 +1,15 @@
+config DUMMYSENSOR
+	bool "dummy sensor"
+	default n
+	depends on DT_HAS_AESIR_DUMMYSENSOR_ENABLED
+
+
+choice
+	prompt "select data source for the dummy sensor"
+	config DUMMYSENSOR_SKYWARD
+		bool "skyward data"
+	config DUMMYSENSOR_PICCARD
+		bool "piccard data"
+	config DUMMYSENSOR_ICLR
+		bool "iclr data"
+endchoice

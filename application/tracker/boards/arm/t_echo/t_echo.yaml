@@ -1,0 +1,12 @@
+identifier: t_echo
+name: T-echo
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+supported:
+  - usb_device
+  - ble
+  - pwm

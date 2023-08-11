@@ -1,0 +1,45 @@
+/ {
+    chosen {
+        zephyr,console = &cdc_acm_uart0;
+        zephyr,shell = &cdc_acm_uart0;
+    };
+
+    aliases {
+		io-led = &ioled;
+        imu = &lsm6dso32;
+        barometer = &ms5607;
+		main-usb = &usbotg_fs;
+		pyro0 = &pyro0;
+		pyro1 = &pyro1;
+		pyro2 = &pyro2;
+		pyro0-sense = &pyro0_sense;
+		pyro1-sense = &pyro1_sense;
+		pyro2-sense = &pyro2_sense;
+        data-usb = &cdc_acm_uart1;
+    };
+
+    dummysensor: dummysensor {
+        compatible = "aesir,dummysensor";
+        status = "okay";
+    };
+};
+
+
+&lsm6dso32 {
+    gyro-odr = <4>; //104Hz
+    accel-odr = <4>; //104Hz
+    accel-range = <1>; //16g
+    gyro-range = <6>; //2000dps
+    accel-pm = <0>; //high performance
+    gyro-pm = <0>; //high performance
+};
+
+
+&usbotg_fs {
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+    cdc_acm_uart1: cdc_acm_uart1 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};

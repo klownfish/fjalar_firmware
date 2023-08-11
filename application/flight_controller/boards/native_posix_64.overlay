@@ -1,0 +1,57 @@
+/ {
+    chosen {
+        // zephyr,console = &uart0;
+		// zephyr,shell-uart = &uart0;
+    };
+    aliases {
+        imu = &dummysensor;
+        barometer = &dummysensor;
+        external-uart = &uart1;
+        io-led = &ioled;
+        main-usb = &zephyr_udc0;
+        pyro0 = &pyro0;
+        pyro1 = &pyro1;
+        pyro2 = &pyro2;
+        pyro0-sense = &pyro0_sense;
+        pyro1-sense = &pyro1_sense;
+        pyro2-sense = &pyro2_sense;
+    };
+
+    dummysensor: dummysensor {
+        compatible = "aesir,dummysensor";
+        status = "okay";
+    };
+
+    leds {
+		compatible = "gpio-leds";
+		ioled: io_led {
+			gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+    pyros {
+        compatible = "gpio-leds";
+        pyro0: pyro_0 {
+            gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+        };
+        pyro1: pyro_1 {
+            gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+        };
+        pyro2: pyro_2 {
+            gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+        };
+    };
+
+	pyro_sense {
+		compatible = "gpio-keys";
+		pyro0_sense: pyro0_sense {
+			gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
+		};
+		pyro1_sense: pyro1_sense {
+			gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+		};
+		pyro2_sense: pyro2_sense {
+			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+		};
+	};
+};

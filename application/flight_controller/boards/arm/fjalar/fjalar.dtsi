@@ -1,0 +1,153 @@
+#include <st/u5/stm32u575Xi.dtsi>
+#include <st/u5/stm32u575zitxq-pinctrl.dtsi>
+
+/ {
+	leds {
+		compatible = "gpio-leds";
+		ioled: io_led {
+			gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>;
+			label = "IO led";
+		};
+	};
+
+    pyros {
+        compatible = "gpio-leds";
+        pyro0: pyro_0 {
+            gpios = <&gpiob 13 GPIO_ACTIVE_HIGH>;
+        };
+        pyro1: pyro_1 {
+            gpios = <&gpiob 12 GPIO_ACTIVE_HIGH>;
+        };
+        pyro2: pyro_2 {
+            gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
+        };
+    };
+
+	pyro_sense {
+		compatible = "gpio-keys";
+		pyro0_sense: pyro0_sense {
+			gpios = <&gpioa 8 GPIO_ACTIVE_LOW>;
+		};
+		pyro1_sense: pyro1_sense {
+			gpios = <&gpiob 15 GPIO_ACTIVE_LOW>;
+		};
+		pyro2_sense: pyro2_sense {
+			gpios = <&gpioa 2 GPIO_ACTIVE_LOW>;
+		};
+	};
+};
+
+&usbotg_fs {
+	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
+	pinctrl-names = "default";
+	current-speed = <9600>;
+	status = "okay";
+};
+
+&gpdma1 {
+	status = "okay";
+};
+
+&clk_hsi48 {
+	status = "okay";
+};
+
+&clk_hse {
+	status = "okay";
+	clock-frequency = <DT_FREQ_M(48)>;
+};
+
+&clk_msis {
+	status = "okay";
+	msi-range = <4>;
+	msi-pll-mode;
+};
+
+&pll1 {
+	div-m = <3>;
+	mul-n = <10>;
+	div-q = <2>;
+	div-r = <1>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll1>;
+	clock-frequency = <DT_FREQ_M(160)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <1>;
+	apb2-prescaler = <1>;
+	apb3-prescaler = <1>;
+};
+
+&uart4 {
+    pinctrl-0 = <&uart4_tx_pa0 &uart4_rx_pa1>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_scl_pb6 &i2c1_sda_pb7>;
+	pinctrl-names = "default";
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&i2c2 {
+	pinctrl-0 = <&i2c2_scl_pb10 &i2c2_sda_pb14>;
+	pinctrl-names = "default";
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&spi1 {
+	pinctrl-0 = <&spi1_sck_pb3
+			&spi1_miso_pb4 &spi1_mosi_pb5>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioc 13 GPIO_ACTIVE_LOW>, <&gpioa 15 GPIO_ACTIVE_LOW>;
+	clock-frequency = <1000000>;
+	status = "okay";
+};
+
+&adc1 {
+	pinctrl-0 = <&adc1_in15_pb0>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&timers2 {
+	st,prescaler = <10000>;
+	status = "okay";
+
+	pwm_buzzer: pwm {
+	pinctrl-0 = <&tim2_ch4_pa3>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+};
+
+&iwdg {
+	status = "okay";
+};
+
+&rng {
+	status = "okay";
+};
+
+&can1 {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1_2 0x00000200>,
+		 <&rcc STM32_SRC_PLL1_Q FDCAN1_SEL(1)>;
+	pinctrl-0 = <&fdcan1_rx_pb8 &fdcan1_tx_pb9>;
+	pinctrl-names = "default";
+	bus-speed = <125000>;
+	bus-speed-data = <1000000>;
+	status = "okay";
+};

@@ -1,0 +1,192 @@
+/*
+ * Copyright (c) 2017 Linaro Limited
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+#include "t_echo-pinctrl.dtsi"
+
+/ {
+	model = "T-echo";
+	compatible = "nordic,pca10056-dk";
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,uart-mcumgr = &uart0;
+		zephyr,bt-mon-uart = &uart0;
+		zephyr,bt-c2h-uart = &uart0;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,ieee802154 = &ieee802154;
+		zephyr,display = &ssd1681;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led0_green: led_0 {
+			gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+		};
+		led1_red: led_1 {
+			gpios = <&gpio1 3 GPIO_ACTIVE_LOW>;
+		};
+		led2_blue: led_2 {
+			gpios = <&gpio0 14 GPIO_ACTIVE_LOW>;
+		};
+		pwr_en: pwr_en {
+			gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+		};
+		backlight: backlight {
+			gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+
+
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = <&gpio1 10 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		};
+	};
+
+	/* These aliases are provided for compatibility with samples */
+	aliases {
+		sw0 = &button0;
+		led0 = &led0_green;
+		led1 = &led1_red;
+		led2 = &led2_blue;
+		led0-green = &led0_green;
+		led1-red   = &led1_red;
+		led1-blue  = &led2_blue;
+		pwr-en = &pwr_en;
+		watchdog0 = &wdt0;
+	};
+
+	softspi0: softspi0 {
+		compatible = "zephyr,spi-bitbang";
+		status="okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clk-gpios = <&gpio0 19 GPIO_ACTIVE_HIGH>;
+		mosi-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
+		cs-gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
+
+
+		sx1262: sx1262@0 {
+			compatible ="semtech,sx1262";
+			reg = <0>;
+			spi-max-frequency = <10000000>;
+			status = "okay";
+			reset-gpios = <&gpio0 25 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
+			dio1-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+			busy-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
+		};
+	};
+};
+
+&adc {
+	status = "okay";
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&uart0 {
+	compatible = "nordic,nrf-uart";
+	current-speed = <115200>;
+	status = "okay";
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-1 = <&uart0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&i2c0 {
+	compatible = "nordic,nrf-twi";
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-1 = <&i2c0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-1 = <&spi0_sleep>;
+	cs-gpios = <&gpio0 30 GPIO_ACTIVE_LOW>;
+	pinctrl-names = "default", "sleep";
+
+	ssd1681: ssd1681@0 {
+		reg = <0>;
+		compatible = "solomon,ssd1681";
+		reset-gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+		dc-gpios = <&gpio0 28 GPIO_ACTIVE_LOW>;
+		busy-gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
+		spi-max-frequency = <10000000>;
+		height = <200>;
+		width = <200>;
+	};
+};
+
+
+
+&ieee802154 {
+	status = "okay";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x0000C000>;
+		};
+		slot0_partition: partition@c000 {
+			label = "image-0";
+			reg = <0x0000C000 0x00067000>;
+		};
+		slot1_partition: partition@73000 {
+			label = "image-1";
+			reg = <0x00073000 0x00067000>;
+		};
+		scratch_partition: partition@da000 {
+			label = "image-scratch";
+			reg = <0x000da000 0x0001e000>;
+		};
+
+		/*
+		 * The flash starting at 0x000f8000 and ending at
+		 * 0x000fffff is reserved for use by the application.
+		 */
+
+		/*
+		 * Storage partition will be used by FCB/LittleFS/NVS
+		 * if enabled.
+		 */
+		storage_partition: partition@f8000 {
+			label = "storage";
+			reg = <0x000f8000 0x00008000>;
+		};
+	};
+};
+
+zephyr_udc0: &usbd {
+	compatible = "nordic,nrf-usbd";
+	status = "okay";
+};
