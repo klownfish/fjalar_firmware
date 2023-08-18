@@ -65,13 +65,9 @@ typedef struct gnss_status {
     float vdop;
 } gnss_status_t;
 
-typedef struct enter_sudo {
-    char dummy_field;
-} enter_sudo_t;
-
-typedef struct leave_sudo {
-    char dummy_field;
-} leave_sudo_t;
+typedef struct set_sudo {
+    bool enabled;
+} set_sudo_t;
 
 typedef struct clear_flash {
     char dummy_field;
@@ -96,6 +92,18 @@ typedef struct enter_idle {
     char dummy_field;
 } enter_idle_t;
 
+typedef struct pyros_enabled {
+    bool pyro0;
+    bool pyro1;
+    bool pyro2;
+} pyros_enabled_t;
+
+typedef struct enable_pyros {
+    bool pyro0;
+    bool pyro1;
+    bool pyro2;
+} enable_pyros_t;
+
 typedef struct fjalar_data {
     pb_size_t which_data;
     union {
@@ -105,13 +113,14 @@ typedef struct fjalar_data {
         pressure_reading_t pressure_reading;
         gnss_position_t gnss_position;
         gnss_status_t gnss_status;
-        enter_sudo_t enter_sudo;
-        leave_sudo_t leave_sudo;
+        set_sudo_t set_sudo;
         clear_flash_t clear_flash;
         read_flash_t read_flash;
         flash_data_t flash_data;
         ready_up_t ready_up;
         enter_idle_t enter_idle;
+        enable_pyros_t enable_pyros;
+        pyros_enabled_t pyros_enabled;
     } data;
 } fjalar_data_t;
 
@@ -149,6 +158,7 @@ extern "C" {
 
 
 
+
 /* Initializer values for message structs */
 #define ACKNOWLEDGE_INIT_DEFAULT                 {0}
 #define PRESSURE_READING_INIT_DEFAULT            {0}
@@ -156,13 +166,14 @@ extern "C" {
 #define TELEMETRY_PACKET_INIT_DEFAULT            {0, 0, 0, 0, 0, 0, _FLIGHT_STATE_MIN, 0, 0, 0, 0}
 #define GNSS_POSITION_INIT_DEFAULT               {0, 0}
 #define GNSS_STATUS_INIT_DEFAULT                 {0, 0, 0, 0}
-#define ENTER_SUDO_INIT_DEFAULT                  {0}
-#define LEAVE_SUDO_INIT_DEFAULT                  {0}
+#define SET_SUDO_INIT_DEFAULT                    {0}
 #define CLEAR_FLASH_INIT_DEFAULT                 {0}
 #define READ_FLASH_INIT_DEFAULT                  {0, 0}
 #define FLASH_DATA_INIT_DEFAULT                  {0, {0, {0}}}
 #define READY_UP_INIT_DEFAULT                    {0}
 #define ENTER_IDLE_INIT_DEFAULT                  {0}
+#define PYROS_ENABLED_INIT_DEFAULT               {0, 0, 0}
+#define ENABLE_PYROS_INIT_DEFAULT                {0, 0, 0}
 #define FJALAR_DATA_INIT_DEFAULT                 {0, {ACKNOWLEDGE_INIT_DEFAULT}}
 #define FJALAR_MESSAGE_INIT_DEFAULT              {0, 0, false, FJALAR_DATA_INIT_DEFAULT}
 #define ACKNOWLEDGE_INIT_ZERO                    {0}
@@ -171,13 +182,14 @@ extern "C" {
 #define TELEMETRY_PACKET_INIT_ZERO               {0, 0, 0, 0, 0, 0, _FLIGHT_STATE_MIN, 0, 0, 0, 0}
 #define GNSS_POSITION_INIT_ZERO                  {0, 0}
 #define GNSS_STATUS_INIT_ZERO                    {0, 0, 0, 0}
-#define ENTER_SUDO_INIT_ZERO                     {0}
-#define LEAVE_SUDO_INIT_ZERO                     {0}
+#define SET_SUDO_INIT_ZERO                       {0}
 #define CLEAR_FLASH_INIT_ZERO                    {0}
 #define READ_FLASH_INIT_ZERO                     {0, 0}
 #define FLASH_DATA_INIT_ZERO                     {0, {0, {0}}}
 #define READY_UP_INIT_ZERO                       {0}
 #define ENTER_IDLE_INIT_ZERO                     {0}
+#define PYROS_ENABLED_INIT_ZERO                  {0, 0, 0}
+#define ENABLE_PYROS_INIT_ZERO                   {0, 0, 0}
 #define FJALAR_DATA_INIT_ZERO                    {0, {ACKNOWLEDGE_INIT_ZERO}}
 #define FJALAR_MESSAGE_INIT_ZERO                 {0, 0, false, FJALAR_DATA_INIT_ZERO}
 
@@ -207,23 +219,31 @@ extern "C" {
 #define GNSS_STATUS_NUM_SATELLITES_TAG           2
 #define GNSS_STATUS_HDOP_TAG                     3
 #define GNSS_STATUS_VDOP_TAG                     4
+#define SET_SUDO_ENABLED_TAG                     1
 #define READ_FLASH_START_INDEX_TAG               1
 #define READ_FLASH_LENGTH_TAG                    2
 #define FLASH_DATA_START_INDEX_TAG               1
 #define FLASH_DATA_DATA_TAG                      2
+#define PYROS_ENABLED_PYRO0_TAG                  1
+#define PYROS_ENABLED_PYRO1_TAG                  2
+#define PYROS_ENABLED_PYRO2_TAG                  3
+#define ENABLE_PYROS_PYRO0_TAG                   1
+#define ENABLE_PYROS_PYRO1_TAG                   2
+#define ENABLE_PYROS_PYRO2_TAG                   3
 #define FJALAR_DATA_ACKNOWLEDGE_TAG              1
 #define FJALAR_DATA_TELEMETRY_PACKET_TAG         2
 #define FJALAR_DATA_IMU_READING_TAG              3
 #define FJALAR_DATA_PRESSURE_READING_TAG         4
 #define FJALAR_DATA_GNSS_POSITION_TAG            5
 #define FJALAR_DATA_GNSS_STATUS_TAG              6
-#define FJALAR_DATA_ENTER_SUDO_TAG               7
-#define FJALAR_DATA_LEAVE_SUDO_TAG               8
+#define FJALAR_DATA_SET_SUDO_TAG                 8
 #define FJALAR_DATA_CLEAR_FLASH_TAG              9
 #define FJALAR_DATA_READ_FLASH_TAG               10
 #define FJALAR_DATA_FLASH_DATA_TAG               11
 #define FJALAR_DATA_READY_UP_TAG                 12
 #define FJALAR_DATA_ENTER_IDLE_TAG               13
+#define FJALAR_DATA_ENABLE_PYROS_TAG             14
+#define FJALAR_DATA_PYROS_ENABLED_TAG            15
 #define FJALAR_MESSAGE_TIME_TAG                  1
 #define FJALAR_MESSAGE_SEQUENCE_NUMBER_TAG       2
 #define FJALAR_MESSAGE_DATA_TAG                  3
@@ -278,15 +298,10 @@ X(a, STATIC,   SINGULAR, FLOAT,    vdop,              4)
 #define GNSS_STATUS_CALLBACK NULL
 #define GNSS_STATUS_DEFAULT NULL
 
-#define ENTER_SUDO_FIELDLIST(X, a) \
-
-#define ENTER_SUDO_CALLBACK NULL
-#define ENTER_SUDO_DEFAULT NULL
-
-#define LEAVE_SUDO_FIELDLIST(X, a) \
-
-#define LEAVE_SUDO_CALLBACK NULL
-#define LEAVE_SUDO_DEFAULT NULL
+#define SET_SUDO_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, BOOL,     enabled,           1)
+#define SET_SUDO_CALLBACK NULL
+#define SET_SUDO_DEFAULT NULL
 
 #define CLEAR_FLASH_FIELDLIST(X, a) \
 
@@ -315,6 +330,20 @@ X(a, STATIC,   SINGULAR, BYTES,    data,              2)
 #define ENTER_IDLE_CALLBACK NULL
 #define ENTER_IDLE_DEFAULT NULL
 
+#define PYROS_ENABLED_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro0,             1) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro1,             2) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro2,             3)
+#define PYROS_ENABLED_CALLBACK NULL
+#define PYROS_ENABLED_DEFAULT NULL
+
+#define ENABLE_PYROS_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro0,             1) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro1,             2) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro2,             3)
+#define ENABLE_PYROS_CALLBACK NULL
+#define ENABLE_PYROS_DEFAULT NULL
+
 #define FJALAR_DATA_FIELDLIST(X, a) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,acknowledge,data.acknowledge),   1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,telemetry_packet,data.telemetry_packet),   2) \
@@ -322,13 +351,14 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (data,imu_reading,data.imu_reading),   3) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,pressure_reading,data.pressure_reading),   4) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,gnss_position,data.gnss_position),   5) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,gnss_status,data.gnss_status),   6) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (data,enter_sudo,data.enter_sudo),   7) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (data,leave_sudo,data.leave_sudo),   8) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (data,set_sudo,data.set_sudo),   8) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,clear_flash,data.clear_flash),   9) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,read_flash,data.read_flash),  10) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,flash_data,data.flash_data),  11) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,ready_up,data.ready_up),  12) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (data,enter_idle,data.enter_idle),  13)
+X(a, STATIC,   ONEOF,    MESSAGE,  (data,enter_idle,data.enter_idle),  13) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (data,enable_pyros,data.enable_pyros),  14) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (data,pyros_enabled,data.pyros_enabled),  15)
 #define FJALAR_DATA_CALLBACK NULL
 #define FJALAR_DATA_DEFAULT NULL
 #define fjalar_data_t_data_acknowledge_MSGTYPE acknowledge_t
@@ -337,13 +367,14 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (data,enter_idle,data.enter_idle),  13)
 #define fjalar_data_t_data_pressure_reading_MSGTYPE pressure_reading_t
 #define fjalar_data_t_data_gnss_position_MSGTYPE gnss_position_t
 #define fjalar_data_t_data_gnss_status_MSGTYPE gnss_status_t
-#define fjalar_data_t_data_enter_sudo_MSGTYPE enter_sudo_t
-#define fjalar_data_t_data_leave_sudo_MSGTYPE leave_sudo_t
+#define fjalar_data_t_data_set_sudo_MSGTYPE set_sudo_t
 #define fjalar_data_t_data_clear_flash_MSGTYPE clear_flash_t
 #define fjalar_data_t_data_read_flash_MSGTYPE read_flash_t
 #define fjalar_data_t_data_flash_data_MSGTYPE flash_data_t
 #define fjalar_data_t_data_ready_up_MSGTYPE ready_up_t
 #define fjalar_data_t_data_enter_idle_MSGTYPE enter_idle_t
+#define fjalar_data_t_data_enable_pyros_MSGTYPE enable_pyros_t
+#define fjalar_data_t_data_pyros_enabled_MSGTYPE pyros_enabled_t
 
 #define FJALAR_MESSAGE_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FIXED32,  time,              1) \
@@ -359,13 +390,14 @@ extern const pb_msgdesc_t imu_reading_t_msg;
 extern const pb_msgdesc_t telemetry_packet_t_msg;
 extern const pb_msgdesc_t gnss_position_t_msg;
 extern const pb_msgdesc_t gnss_status_t_msg;
-extern const pb_msgdesc_t enter_sudo_t_msg;
-extern const pb_msgdesc_t leave_sudo_t_msg;
+extern const pb_msgdesc_t set_sudo_t_msg;
 extern const pb_msgdesc_t clear_flash_t_msg;
 extern const pb_msgdesc_t read_flash_t_msg;
 extern const pb_msgdesc_t flash_data_t_msg;
 extern const pb_msgdesc_t ready_up_t_msg;
 extern const pb_msgdesc_t enter_idle_t_msg;
+extern const pb_msgdesc_t pyros_enabled_t_msg;
+extern const pb_msgdesc_t enable_pyros_t_msg;
 extern const pb_msgdesc_t fjalar_data_t_msg;
 extern const pb_msgdesc_t fjalar_message_t_msg;
 
@@ -376,31 +408,33 @@ extern const pb_msgdesc_t fjalar_message_t_msg;
 #define TELEMETRY_PACKET_FIELDS &telemetry_packet_t_msg
 #define GNSS_POSITION_FIELDS &gnss_position_t_msg
 #define GNSS_STATUS_FIELDS &gnss_status_t_msg
-#define ENTER_SUDO_FIELDS &enter_sudo_t_msg
-#define LEAVE_SUDO_FIELDS &leave_sudo_t_msg
+#define SET_SUDO_FIELDS &set_sudo_t_msg
 #define CLEAR_FLASH_FIELDS &clear_flash_t_msg
 #define READ_FLASH_FIELDS &read_flash_t_msg
 #define FLASH_DATA_FIELDS &flash_data_t_msg
 #define READY_UP_FIELDS &ready_up_t_msg
 #define ENTER_IDLE_FIELDS &enter_idle_t_msg
+#define PYROS_ENABLED_FIELDS &pyros_enabled_t_msg
+#define ENABLE_PYROS_FIELDS &enable_pyros_t_msg
 #define FJALAR_DATA_FIELDS &fjalar_data_t_msg
 #define FJALAR_MESSAGE_FIELDS &fjalar_message_t_msg
 
 /* Maximum encoded size of messages (where known) */
 #define ACKNOWLEDGE_SIZE                         2
 #define CLEAR_FLASH_SIZE                         0
+#define ENABLE_PYROS_SIZE                        6
 #define ENTER_IDLE_SIZE                          0
-#define ENTER_SUDO_SIZE                          0
 #define FJALAR_DATA_SIZE                         79
 #define FJALAR_MESSAGE_SIZE                      97
 #define FLASH_DATA_SIZE                          77
 #define GNSS_POSITION_SIZE                       10
 #define GNSS_STATUS_SIZE                         32
 #define IMU_READING_SIZE                         30
-#define LEAVE_SUDO_SIZE                          0
 #define PRESSURE_READING_SIZE                    5
+#define PYROS_ENABLED_SIZE                       6
 #define READY_UP_SIZE                            0
 #define READ_FLASH_SIZE                          22
+#define SET_SUDO_SIZE                            2
 #define TELEMETRY_PACKET_SIZE                    49
 
 #ifdef __cplusplus

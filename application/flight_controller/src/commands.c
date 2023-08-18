@@ -6,10 +6,9 @@
 #include "commands.h"
 #include "fjalar.h"
 
-LOG_MODULE_REGISTER(commands, CONFIG_APP_TELECOMMAND_LOG_LEVEL);
+LOG_MODULE_REGISTER(commands, CONFIG_APP_COMMANDS_LOG_LEVEL);
 
-void handle_enter_sudo(enter_sudo_t *msg, fjalar_t *fjalar, enum com_channels channel);
-void handle_leave_sudo(leave_sudo_t *msg, fjalar_t *fjalar, enum com_channels channel);
+void handle_set_sudo(set_sudo_t *msg, fjalar_t *fjalar, enum com_channels channel);
 void handle_ready_up(ready_up_t *msg, fjalar_t *fjalar, enum com_channels channel);
 void handle_enter_idle(enter_idle_t *msg, fjalar_t *fjalar, enum com_channels channel);
 
@@ -26,12 +25,8 @@ void handle_fjalar_buf(struct protocol_state *ps, fjalar_t *fjalar, uint8_t buf[
 
 void handle_fjalar_message(fjalar_message_t *msg, fjalar_t *fjalar, enum com_channels channel) {
     switch (msg->data.which_data) {
-        case FJALAR_DATA_ENTER_SUDO_TAG:
-            handle_enter_sudo(&msg->data.data.enter_sudo, fjalar, channel);
-            break;
-
-        case FJALAR_DATA_LEAVE_SUDO_TAG:
-            handle_leave_sudo(&msg->data.data.leave_sudo, fjalar, channel);
+        case FJALAR_DATA_SET_SUDO_TAG:
+            handle_set_sudo(&msg->data.data.set_sudo, fjalar, channel);
             break;
 
         case FJALAR_DATA_READY_UP_TAG:
@@ -47,14 +42,10 @@ void handle_fjalar_message(fjalar_message_t *msg, fjalar_t *fjalar, enum com_cha
     }
 }
 
-void handle_enter_sudo(enter_sudo_t *msg, fjalar_t *fjalar, enum com_channels channel) {
-    fjalar->sudo = true;
+void handle_set_sudo(set_sudo_t *msg, fjalar_t *fjalar, enum com_channels channel) {
+    fjalar->sudo = msg->enabled;
 }
 
-
-void handle_leave_sudo(leave_sudo_t *msg, fjalar_t *fjalar, enum com_channels channel) {
-    fjalar->sudo = false;
-}
 
 void handle_ready_up(ready_up_t *msg, fjalar_t *fjalar, enum com_channels channel) {
     bool succesful;

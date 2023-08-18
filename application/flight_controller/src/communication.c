@@ -10,8 +10,7 @@
 #include "fjalar.h"
 #include "commands.h"
 
-LOG_MODULE_REGISTER(communication, CONFIG_APP_TELEMETRY_LOG_LEVEL);
-
+LOG_MODULE_REGISTER(communication, CONFIG_APP_COMMUNICATION_LOG_LEVEL);
 
 #define LORA_THREAD_PRIORITY 7
 #define LORA_THREAD_STACK_SIZE 1024
@@ -65,7 +64,7 @@ struct padded_buf {
 	uint8_t buf[PROTOCOL_BUFFER_LENGTH];
 } __attribute__((aligned(4)));
 
-_Static_assert(sizeof(struct padded_buf) % 4 == 0, "protocol buffer length is not aligned");
+_Static_assert(sizeof(struct padded_buf) % 4 == 0, "padded buffer length is not aligned");
 
 K_MSGQ_DEFINE(uart_msgq, sizeof(struct padded_buf), 32, 4);
 K_MSGQ_DEFINE(flash_msgq, sizeof(struct padded_buf), 32, 4);
@@ -140,6 +139,7 @@ void send_message(fjalar_t *fjalar, fjalar_message_t *msg, enum message_priority
 		LOG_ERR("encode_fjalar_message failed");
 		return;
 	}
+	LOG_DBG("sending message w/ size %d", size);
 	switch(prio) {
 		case MSG_PRIO_LOW:
 			if (fjalar->flight_state == STATE_IDLE) {
@@ -188,7 +188,37 @@ void send_message(fjalar_t *fjalar, fjalar_message_t *msg, enum message_priority
 }
 
 void send_response(fjalar_t *fjalar, fjalar_message_t *msg, enum com_channels channel) {
-
+	struct padded_buf pbuf;
+	if (msg->has_data == false) {
+		msg->has_data = true;
+		LOG_WRN("msg had has_data false");
+	}
+	int size = encode_fjalar_message(msg, pbuf.buf);
+	LOG_DBG("encoded size %d", size);
+	if (size < 0) {
+		LOG_ERR("encode_fjalar_message failed");
+		return;
+	}
+	#if DT_ALIAS_EXISTS(data_flash)
+	if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
+		LOG_WRN("could not insert into flash msgq");
+	}
+	#endif
+	#if DT_ALIAS_EXISTS(lora)
+	if (k_msgq_put(&lora_msgq, &pbuf, K_NO_WAIT)) {
+		LOG_ERR("could not insert into lora msgq");
+	}
+	#endif
+	#if DT_ALIAS_EXISTS(external_uart)
+	if (k_msgq_put(&uart_msgq, &pbuf, K_NO_WAIT)) {
+		LOG_WRN("could not insert into uart msgq");
+	}
+	#endif
+	#if DT_ALIAS_EXISTS(data_usb)
+	if (k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT)) {
+		LOG_INF("could not insert data usb msgq");
+	}
+	#endif
 }
 
 void sampler_thread(fjalar_t *fjalar, void *p2, void *p3) {
@@ -196,6 +226,7 @@ void sampler_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		k_msleep(1000);
 		fjalar_message_t msg;
 		msg.time = k_uptime_get_32();
+		msg.has_data = true;
 		msg.data.which_data = FJALAR_DATA_TELEMETRY_PACKET_TAG;
 		msg.data.data.telemetry_packet.altitude = fjalar->altitude - fjalar->ground_level;
 		msg.data.data.telemetry_packet.az = fjalar->az;
@@ -231,6 +262,35 @@ void lora_thread(fjalar_t *fjalar, void *p2, void *p3) {
 }
 #endif
 
+//posix doens't support async omega lul
+// struct generic_async_uart {
+// 	uint8_t buf[3][128];
+// 	int index;
+// 	int used;
+// };
+
+// void generic_uart_callback(const struct device *dev, struct uart_event *evt, void *user_data) {
+// 	struct generic_async_uart *stuff = (struct generic_async_uart *) user_data;
+
+// 	switch (evt->type) {
+// 		case UART_RX_BUF_REQUEST:
+// 			if (stuff->used == 3) {
+// 				LOG_ERR("UART driver buffer overflow");
+// 				return;
+// 			}
+// 			uart_rx_buf_rsp(dev, stuff->buf[stuff->index], sizeof(stuff->buf[0]));
+// 			stuff->index = (stuff->index + 1) % (sizeof(stuff->buf) / sizeof(stuff->buf[0]));
+// 			stuff->used++;
+// 			break;
+
+// 		case UART_RX_BUF_RELEASED:
+// 			stuff->used--;
+// 			break;
+// 		default:
+// 			break;
+// 	}
+// }
+
 #if DT_ALIAS_EXISTS(external_uart)
 void uart_thread(fjalar_t *fjalar, void *p2, void *p3) {
 	const struct device *uart_dev = DEVICE_DT_GET(DT_ALIAS(external_uart));
@@ -254,12 +314,12 @@ void uart_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		}
 
 		// tx
-		uint8_t buf[PROTOCOL_BUFFER_LENGTH];
-		ret = k_msgq_get(&uart_msgq, buf, K_NO_WAIT);
+		struct padded_buf pbuf;
+		ret = k_msgq_get(&uart_msgq, &pbuf, K_NO_WAIT);
 		if (ret == 0) {
-			int size = get_encoded_message_length(buf);
+			int size = get_encoded_message_length(pbuf.buf);
 			for (int i = 0; i < size; i++) {
-				uart_poll_out(uart_dev, buf[i]);
+				uart_poll_out(uart_dev, pbuf.buf[i]);
 			}
 		}
 		k_msleep(1);
@@ -290,10 +350,10 @@ void usb_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		}
 
 		// tx
-		uint8_t buf[PROTOCOL_BUFFER_LENGTH];
-		ret = k_msgq_get(&usb_msgq, buf, K_NO_WAIT);
+		struct padded_buf pbuf;
+		ret = k_msgq_get(&usb_msgq, &pbuf, K_NO_WAIT);
 		if (ret == 0) {
-			int size = get_encoded_message_length(buf);
+			int size = get_encoded_message_length(pbuf.buf);
 			for (int i = 0; i < size; i++) {
 				uart_poll_out(usb_dev, buf[i]);
 			}

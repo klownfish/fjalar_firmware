@@ -21,12 +21,12 @@ class FjalarParser:
             self.stream_is_file = False
             print("opened serial")
         except:
-            self.stream_is_file = True
-            try:
-                self.stream = open(path, "rb")
-                print("opened file")
-            except:
-                sys.exit()
+            # self.stream_is_file = True
+            # try:
+            #     self.stream = open(path, "rb")
+            #     print("opened file")
+            # except:
+            sys.exit()
 
         self.data = defaultdict(lambda: ([], []))
         self.reader_t = Thread(target=self.reader_thread)
@@ -61,12 +61,15 @@ class FjalarParser:
             msg = schema.FjalarMessage()
             msg.ParseFromString(data)
             time = msg.time / 1000
+            print(length)
             data = json_format.MessageToDict(msg.data, including_default_value_fields=True)
-            data = data[next(iter(data.keys()))] # ignore the message name
-            for field in data.keys():
-                self.data[field][0].append(time)
-                self.data[field][1].append(data[field])
-
+            try:
+                data = data[next(iter(data.keys()))] # ignore the message name
+                for field in data.keys():
+                    self.data[field][0].append(time)
+                    self.data[field][1].append(data[field])
+            except:
+                print("invalid data", data)
     def crc16(self, poly, seed, buf):
         crc = seed
         for byte in buf:

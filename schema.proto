@@ -1,0 +1,119 @@
+syntax = "proto3";
+import "nanopb.proto";
+
+enum FlightState {
+    idle = 0;
+    launchpad = 1;
+    boost = 2;
+    coast = 3;
+    free_fall = 4;
+    drogue_descent = 5;
+    main_descent = 6;
+    landed = 7;
+}
+
+message Acknowledge {
+    bool success = 1;
+}
+
+message PressureReading {
+    float pressure = 1;
+}
+
+message ImuReading {
+    float ax = 1;
+    float ay = 2;
+    float az = 3;
+    float gx = 4;
+    float gy = 5;
+    float gz = 6;
+}
+
+message TelemetryPacket {
+    float altitude = 1;
+    float longitude = 2;
+    float latitude = 3;
+    bool pyro0_connected = 4;
+    bool pyro1_connected = 5;
+    bool pyro2_connected = 6;
+    FlightState flight_state = 7;
+    float az = 10;
+    float velocity = 11;
+    float battery = 12;
+    int32 flash_address = 13;
+}
+
+message GnssPosition {
+    float longitude = 1;
+    float latitude = 2;
+}
+
+message GnssStatus {
+    int32 fix = 1;
+    int32 num_satellites = 2;
+    float hdop = 3;
+    float vdop = 4;
+}
+
+message SetSudo {
+    bool enabled = 1;
+}
+
+message ClearFlash {
+
+}
+
+message ReadFlash {
+    int32 start_index = 1;
+    int32 length = 2;
+}
+
+message FlashData {
+    int32 start_index = 1;
+    bytes data = 2 [(nanopb).max_size = 64];
+}
+
+message ReadyUp {
+
+}
+
+message EnterIdle {
+
+}
+
+message PyrosEnabled {
+    bool pyro0 = 1;
+    bool pyro1 = 2;
+    bool pyro2 = 3;
+}
+
+message EnablePyros {
+    bool pyro0 = 1;
+    bool pyro1 = 2;
+    bool pyro2 = 3;
+}
+
+message FjalarData {
+    oneof data {
+        Acknowledge acknowledge = 1;
+        TelemetryPacket telemetry_packet = 2;
+        ImuReading imu_reading = 3;
+        PressureReading pressure_reading = 4;
+        GnssPosition gnss_position = 5;
+        GnssStatus gnss_status = 6;
+        SetSudo set_sudo = 8;
+        ClearFlash clear_flash = 9;
+        ReadFlash read_flash = 10;
+        FlashData flash_data = 11;
+        ReadyUp ready_up = 12;
+        EnterIdle enter_idle = 13;
+        EnablePyros enable_pyros = 14;
+        PyrosEnabled pyros_enabled = 15;
+    };
+}
+
+message FjalarMessage {
+    fixed32 time = 1;
+    int32 sequence_number = 2;
+    FjalarData data = 3;
+}

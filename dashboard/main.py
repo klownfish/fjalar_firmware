@@ -3,9 +3,10 @@ import time
 from FjalarParser import FjalarParser
 import tkinter as tk
 from utils.widgets import *
+import sys
 
 def main():
-    fjalar = FjalarParser("/dev/pts/6")
+    fjalar = FjalarParser(sys.argv[1])
 
     root = tk.Tk()
     padding = {"padx": 5, "pady": 5}

@@ -1,60 +1,129 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/display.h>
-#include <lvgl.h>
+#include <zephyr/pm/pm.h>
+#include <zephyr/init.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/display/cfb.h>
 
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+#include <cfb_custom_font.h>
+
+#include "tracker.h"
+#include "display.h"
+#include "communication.h"
+
+LOG_MODULE_REGISTER(main, CONFIG_APP_MAIN_LOG_LEVEL);
+
+tracker_t tracker_god = {0};
+
+struct gpio_callback button_callback_data;
+void button_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins) {
+    static uint32_t last_press = 0;
+    int next_frame = (tracker_god.current_frame + 1) % (FRAME_MAX);
+    tracker_god.current_frame = next_frame;
+
+    if (k_uptime_get_32() - last_press < 150) {
+        tracker_god.current_frame = next_frame;
+        int next_frame = (tracker_god.current_frame - 2) % (FRAME_MAX);
+        tracker_god.current_frame = next_frame;
+
+        // do action
+    }
+    last_press = k_uptime_get_32();
+}
+
+int main(void)
+{
+    init_display(&tracker_god);
+    init_communication(&tracker_god);
+
+    int ret;
+    const struct gpio_dt_spec gpio_led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+    const struct gpio_dt_spec back_led = GPIO_DT_SPEC_GET(DT_ALIAS(led_back), gpios);
+    const struct gpio_dt_spec button_sw = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
+
+    ret = gpio_pin_configure_dt(&gpio_led, GPIO_OUTPUT_ACTIVE);
+
+    ret = gpio_pin_configure_dt(&back_led, GPIO_OUTPUT_ACTIVE);
+    ret = gpio_pin_set_dt(&back_led, 1);
+
+    ret = gpio_pin_configure_dt(&button_sw, GPIO_INPUT);
+    ret = gpio_pin_interrupt_configure_dt(&button_sw, GPIO_INT_EDGE_TO_ACTIVE);
+    gpio_init_callback(&button_callback_data, button_callback, BIT(button_sw.pin));
+    ret = gpio_add_callback_dt(&button_sw, &button_callback_data);
+
+    while (1) {
+        ret = gpio_pin_toggle_dt(&gpio_led);
+        if (ret < 0) {
+            return 0;
+        }
+
+        k_msleep(100);
+    }
+    return 0;
+}
+
+#ifdef CONFIG_BOARD_T_ECHO
+#include <hal/nrf_gpio.h>
 
 void power_thread(void *p1, void *p2, void *p3);
 
 K_THREAD_DEFINE(power_thread_id, 512, power_thread, NULL, NULL, NULL, 7, 0, 0);
 
-// void handle_power() {
-// 	gpio_pin_configure_dt(&gpio_pwr_en, GPIO_OUTPUT_ACTIVE);
-// 	volatile uint32_t* reset_reason_reg = (0x40005000 + 0x400); //non-secure partition
-// 	if ((*reset_reason_reg & 1) == 1) { //first bit is reset
-// 		gpio_pin_set_dt(&gpio_pwr_en, 0);
-// 	} else {
-// 		gpio_pin_set_dt(&gpio_pwr_en, 0);
-// 	}
-// }
-
-int main(void)
-{
-
-	int ret;
-
-	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
-	int count = 0;
-	while (1) {
-		ret = gpio_pin_toggle_dt(&led);
-		if (ret < 0) {
-			return 0;
-		}
-		k_msleep(5000);
-		count++;
-	}
-	return 0;
+void power_off(const struct gpio_dt_spec *gpio_pwr_en) {
+    gpio_pin_set_dt(gpio_pwr_en, 0);
+    pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
+    k_msleep(1000);
+    // the line above kind of powers off the board.
+    // If it somehow doesn't then enable external power again to notify the user
+    gpio_pin_set_dt(gpio_pwr_en, 1);
 }
 
 void power_thread(void *p1, void *p2, void *p3) {
-	const struct gpio_dt_spec gpio_button = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
-	const struct gpio_dt_spec gpio_pwr_en = GPIO_DT_SPEC_GET(DT_ALIAS(pwr_en), gpios);
+    const struct gpio_dt_spec gpio_button = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
+    const struct gpio_dt_spec gpio_pwr_en = GPIO_DT_SPEC_GET(DT_ALIAS(pwr_en), gpios);
+    const struct gpio_dt_spec gpio_led = GPIO_DT_SPEC_GET(DT_ALIAS(led2), gpios);
 
-	gpio_pin_configure_dt(&gpio_button, GPIO_INPUT);
+    gpio_pin_configure_dt(&gpio_button, GPIO_INPUT);
+    gpio_pin_configure_dt(&gpio_pwr_en, GPIO_OUTPUT);
+    gpio_pin_configure_dt(&gpio_led, GPIO_OUTPUT);
 
-	gpio_pin_set_dt(&gpio_pwr_en, 1);
-
-	int pressed_for = 0;
-	while (true) {
-		if (gpio_pin_get_dt(&gpio_button)) {
-			pressed_for++;
-			if (pressed_for > 50) {
-				gpio_pin_set_dt(&gpio_pwr_en, 0);
-			}
-		} else {
-			pressed_for = 0;
-		}
-		k_msleep(100);
-	}
+    int pressed_for = 0;
+    while (true) {
+        if (gpio_pin_get_dt(&gpio_button)) {
+            pressed_for++;
+            if (pressed_for > 55) {
+                power_off(&gpio_pwr_en);
+            }
+        } else {
+            pressed_for = 0;
+        }
+        k_msleep(100);
+    }
 }
+
+int early_power_on() {
+    uint32_t psel = NRF_DT_GPIOS_TO_PSEL(DT_ALIAS(pwr_en), gpios);
+    gpio_dt_flags_t flags = DT_GPIO_FLAGS(DT_ALIAS(pwr_en), gpios);
+
+    if (flags & GPIO_ACTIVE_LOW) {
+        nrf_gpio_pin_clear(psel);
+    } else {
+        nrf_gpio_pin_set(psel);
+    }
+    nrf_gpio_cfg_output(psel);
+
+    psel = NRF_DT_GPIOS_TO_PSEL(DT_ALIAS(led2), gpios);
+    flags = DT_GPIO_FLAGS(DT_ALIAS(led2), gpios);
+
+    if (flags & GPIO_ACTIVE_LOW) {
+        nrf_gpio_pin_clear(psel);
+    } else {
+        nrf_gpio_pin_set(psel);
+    }
+    nrf_gpio_cfg_output(psel);
+
+    return 0;
+}
+SYS_INIT(early_power_on, PRE_KERNEL_1, 0);
+#endif

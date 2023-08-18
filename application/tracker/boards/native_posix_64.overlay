@@ -1,4 +1,65 @@
+/ {
+    aliases {
+        led0 = &led_0;
+        led1 = &led_1;
+        led2 = &led_2;
+        sw0 = &sw_0;
+        sw1 = &sw_1;
+        led-back = &led_0;
+        commands-usb = &cdc_acm_uart0;
+        telemetry-uart = &uart1;
+    };
+
+    leds {
+        compatible = "gpio-leds";
+        led_0: led_0 {
+            gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
+        };
+        led_1: led_1 {
+            gpios = <&gpio0 32 GPIO_ACTIVE_HIGH>;
+        };
+        led_2: led_2 {
+            gpios = <&gpio0 33 GPIO_ACTIVE_HIGH>;
+        };
+    };
+
+    buttons {
+        compatible = "gpio-keys";
+        sw_0: sw_0 {
+            gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+        };
+        sw_1: sw_1 {
+            gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+        };
+        debounce-interval-ms = < 50 >;
+    };
+
+    // uart2: uart2 {
+    //     status = "okay";
+    //     compatible = "zephyr,native-tty-uart";
+    //     serial-port = "/dev/pts/12";
+    //     current-speed = <115200>;
+    // };
+
+};
+
+&zephyr_udc0 {
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};
+
+
 &sdl_dc {
     height = <200>;
     width = <200>;
+};
+
+&gpio0 {
+    ngpios = <16>;
+
+    sdl_gpio {
+      compatible = "zephyr,gpio-emul-sdl";
+      scancodes = <54 55>;
+    };
 };

@@ -13,7 +13,7 @@
 
 #define PROTOCOL_ALIGNMENT_BYTE '\x33'
 
-LOG_MODULE_REGISTER(protocol, CONFIG_APP_PROTOCOL_LOG_LEVEL);
+LOG_MODULE_REGISTER(protocol, CONFIG_PROTOCOL_LOG_LEVEL);
 
 int encode_fjalar_message(fjalar_message_t *msg, uint8_t *buf) {
     pb_ostream_t stream = pb_ostream_from_buffer(buf + PROTOCOL_HEADER_SIZE, PROTOCOL_BUFFER_LENGTH);
@@ -25,6 +25,7 @@ int encode_fjalar_message(fjalar_message_t *msg, uint8_t *buf) {
     buf[1] = stream.bytes_written;
     uint16_t crc = crc16(PROTOCOL_CRC_POLY, PROTOCOL_CRC_SEED, buf, stream.bytes_written + PROTOCOL_HEADER_SIZE);
     LOG_DBG("crc %d", crc);
+    LOG_DBG("payload length %d", stream.bytes_written);
     buf[stream.bytes_written + PROTOCOL_HEADER_SIZE] = crc;
     buf[stream.bytes_written + PROTOCOL_HEADER_SIZE + 1] = crc >> 8;
     return stream.bytes_written + PROTOCOL_HEADER_SIZE + PROTOCOL_FOOTER_SIZE;

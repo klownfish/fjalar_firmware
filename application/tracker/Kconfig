@@ -1,3 +1,23 @@
 menu "Zephyr"
 source "Kconfig.zephyr"
 endmenu
+
+config PROTOCOL_LOG_LEVEL
+    int "Application filter log level"
+    default 2
+    depends on LOG
+
+config APP_MAIN_LOG_LEVEL
+    int "app main log level"
+    default 2
+    depends on LOG
+
+config APP_DISPLAY_LOG_LEVEL
+    int "app display log level"
+    default 2
+    depends on LOG
+
+config APP_COM_LOG_LEVEL
+    int "app communication log level"
+    default 2
+    depends on LOG

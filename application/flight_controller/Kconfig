@@ -22,7 +22,7 @@ config APP_MAIN_LOG_LEVEL
     default 2
     depends on LOG
 
-config APP_PROTOCOL_LOG_LEVEL
+config PROTOCOL_LOG_LEVEL
     int "Application filter log level"
     default 2
     depends on LOG
@@ -32,12 +32,12 @@ config APP_SENSORS_LOG_LEVEL
     default 2
     depends on LOG
 
-config APP_TELECOMMAND_LOG_LEVEL
+config APP_COMMANDS_LOG_LEVEL
     int "Application filter log level"
     default 2
     depends on LOG
 
-config APP_TELEMETRY_LOG_LEVEL
+config APP_COMMUNICATION_LOG_LEVEL
     int "Application filter log level"
     default 2
     depends on LOG

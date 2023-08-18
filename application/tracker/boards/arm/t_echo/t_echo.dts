@@ -48,22 +48,31 @@
 
 	buttons {
 		compatible = "gpio-keys";
-		button0: button_0 {
-			gpios = <&gpio1 10 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		button_0: button_0 {
+			gpios = <&gpio1 10 (GPIO_ACTIVE_LOW)>;
 		};
+
+		touch_0: touch_0 {
+			gpios = <&gpio0 11 (GPIO_ACTIVE_LOW)>;
+		};
+
+        debounce-interval-ms = < 50 >;
 	};
 
 	/* These aliases are provided for compatibility with samples */
 	aliases {
-		sw0 = &button0;
+		sw0 = &button_0;
+		sw1 = &touch_0;
 		led0 = &led0_green;
 		led1 = &led1_red;
 		led2 = &led2_blue;
 		led0-green = &led0_green;
 		led1-red   = &led1_red;
 		led1-blue  = &led2_blue;
+		led-back = &backlight;
 		pwr-en = &pwr_en;
 		watchdog0 = &wdt0;
+		telemetry-lora = &sx1262;
 	};
 
 	softspi0: softspi0 {
@@ -134,10 +143,11 @@
 		compatible = "solomon,ssd1681";
 		reset-gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
 		dc-gpios = <&gpio0 28 GPIO_ACTIVE_LOW>;
-		busy-gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
+		busy-gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
 		spi-max-frequency = <10000000>;
 		height = <200>;
 		width = <200>;
+		orientation-flipped;
 	};
 };
 

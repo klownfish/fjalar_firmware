@@ -24,10 +24,7 @@ PB_BIND(GNSS_POSITION, gnss_position_t, AUTO)
 PB_BIND(GNSS_STATUS, gnss_status_t, AUTO)
 
 
-PB_BIND(ENTER_SUDO, enter_sudo_t, AUTO)
-
-
-PB_BIND(LEAVE_SUDO, leave_sudo_t, AUTO)
+PB_BIND(SET_SUDO, set_sudo_t, AUTO)
 
 
 PB_BIND(CLEAR_FLASH, clear_flash_t, AUTO)
@@ -43,6 +40,12 @@ PB_BIND(READY_UP, ready_up_t, AUTO)
 
 
 PB_BIND(ENTER_IDLE, enter_idle_t, AUTO)
+
+
+PB_BIND(PYROS_ENABLED, pyros_enabled_t, AUTO)
+
+
+PB_BIND(ENABLE_PYROS, enable_pyros_t, AUTO)
 
 
 PB_BIND(FJALAR_DATA, fjalar_data_t, AUTO)
