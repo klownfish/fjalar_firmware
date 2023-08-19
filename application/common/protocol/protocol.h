@@ -32,6 +32,6 @@ struct protocol_state {
 
 int encode_fjalar_message(fjalar_message_t *data, uint8_t *buf);
 void reset_protocol_state(struct protocol_state *ps);
-bool parse_fjalar_message(struct protocol_state *ps, uint8_t byte, fjalar_message_t *message);
+int parse_fjalar_message(struct protocol_state *ps, uint8_t byte, fjalar_message_t *message);
 
 int get_encoded_message_length(uint8_t *buf);

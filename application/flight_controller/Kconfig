@@ -2,6 +2,9 @@ menu "Zephyr"
 source "Kconfig.zephyr"
 endmenu
 
+rsource "../common/Kconfig"
+
+
 config APP_ACTUATION_LOG_LEVEL
     int "Application log level"
     default 2

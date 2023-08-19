@@ -7,7 +7,7 @@
     aliases {
 		io-led = &ioled;
         imu = &lsm6dso32;
-        barometer = &ms5607;
+        barometer = &ms5611;
 		main-usb = &usbotg_fs;
 		pyro0 = &pyro0;
 		pyro1 = &pyro1;

@@ -37,9 +37,9 @@
 		reg = <0x6a>;
 	};
 
-	ms5607: ms5607@77 {
+	ms5611: ms5611@77 {
 		status = "okay";
-		compatible = "meas,ms5607";
+		compatible = "meas,ms5611";
 		reg = <0x77>;
 	};
 };

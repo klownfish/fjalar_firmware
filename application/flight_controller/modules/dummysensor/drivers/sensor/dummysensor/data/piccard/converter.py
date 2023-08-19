@@ -41,7 +41,7 @@ for row in baro_reader:
         continue
     if row[2] != "BARO0":
         continue
-    line = "{" + str(float(row[1]) / 1000) + "," +  str(float(row[4]) / 1000) + "},\n"
+    line = "{" + str(float(row[1]) / 1000) + "," +  str(float(row[4]) / 100) + "},\n"
     out.write(line)
     baro_length += 1
 out.write("};\n\n")

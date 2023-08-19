@@ -27,6 +27,9 @@ LOG_MODULE_REGISTER(communication, CONFIG_APP_COMMUNICATION_LOG_LEVEL);
 #define SAMPLER_THREAD_PRIORITY 7
 #define SAMPLER_THREAD_STACK_SIZE 1024
 
+#define LORA_TRANSMIT 1
+#define LORA_RECEIVE 0
+
 K_THREAD_STACK_DEFINE(sampler_thread_stack, SAMPLER_THREAD_STACK_SIZE);
 struct k_thread sampler_thread_data;
 k_tid_t sampler_thread_id;
@@ -251,14 +254,55 @@ void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 #endif
 
 #if DT_ALIAS_EXISTS(lora)
-void lora_thread(fjalar_t *fjalar, void *p2, void *p3) {
-	const struct device *lora_dev = DEVICE_DT_GET(DT_ALIAS(lora));
+void lora_configure(const struct device *dev, bool transmit) {
+    struct lora_modem_config config;
+    config.bandwidth = BW_500_KHZ;
+    config.coding_rate = CR_4_8;
+    config.datarate = 0; // what is this
+    config.frequency = 437000000;
+    config.iq_inverted = false;
+    config.preamble_len = 8; //LoRa WAN uses this so I guess it's good
+    config.public_network = false;
+    config.tx = transmit;
+    config.tx_power = 20;
+    lora_config(dev, &config);
+}
 
+void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi, int8_t snr) {
+    struct protocol_state ps;
+    reset_protocol_state(&ps);
+	handle_fjalar_buf(&ps, &fjalar_god, buf, size, COM_CHAN_LORA);
+}
+
+void lora_thread(fjalar_t *tracker, void* p2, void* p3) {
+    const struct device *lora_dev = DEVICE_DT_GET(DT_ALIAS(lora));
+    struct lora_modem_config config;
+    config.bandwidth = BW_500_KHZ;
+    config.coding_rate = CR_4_8;
+    config.datarate = 0; // what is this
+    config.frequency = 437000000;
+    config.iq_inverted = false;
+    config.preamble_len = 8; //LoRa WAN uses this so I guess it's good
+    config.public_network = false;
+    config.tx = true;
+    config.tx_power = 20;
     if (!device_is_ready(lora_dev)) {
-		LOG_ERR("LoRa not ready");
-		return;
-	}
-
+        LOG_ERR("LoRa is not ready");
+    }
+    while (true) {
+        int ret;
+        struct padded_buf buf;
+        lora_configure(lora_dev, LORA_RECEIVE);
+        lora_recv_async(lora_dev, (lora_recv_cb) lora_cb);
+        ret = k_msgq_get(&lora_msgq, &buf, K_FOREVER);
+        if (ret == 0) {
+            lora_configure(lora_dev, LORA_TRANSMIT);
+            int size = get_encoded_message_length(buf.buf);
+            lora_send(lora_dev, buf.buf, size);
+        } else {
+            LOG_ERR("lora msgq error");
+        }
+    }
 }
 #endif
 
@@ -355,7 +399,7 @@ void usb_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		if (ret == 0) {
 			int size = get_encoded_message_length(pbuf.buf);
 			for (int i = 0; i < size; i++) {
-				uart_poll_out(usb_dev, buf[i]);
+				uart_poll_out(usb_dev, pbuf.buf[i]);
 			}
 		}
 		k_msleep(1);

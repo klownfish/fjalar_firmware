@@ -29,7 +29,7 @@ baro_length = 0
 for row in baro_reader:
     if row[0] == "time":
         continue
-    line = "{" + row[0] + "," +  str(float(row[1]) / 1000) + "},\n"
+    line = "{" + row[0] + "," +  str(float(row[1]) / 100) + "},\n"
     out.write(line)
     baro_length += 1
 out.write("};\n\n")

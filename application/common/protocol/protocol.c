@@ -36,7 +36,11 @@ void reset_protocol_state(struct protocol_state *ps) {
     ps->data_index = 0;
 }
 
-bool parse_fjalar_message(struct protocol_state *ps, uint8_t byte, fjalar_message_t *message) {
+// returns:
+// 1 received message
+// 0 no message
+// -1 an error reset the state machine
+int parse_fjalar_message(struct protocol_state *ps, uint8_t byte, fjalar_message_t *message) {
     switch(ps->state) {
         case PROT_STATE_ALIGNMENT:
             LOG_DBG("Alignment byte: %d", byte);
@@ -78,14 +82,15 @@ bool parse_fjalar_message(struct protocol_state *ps, uint8_t byte, fjalar_messag
                 ret = pb_decode(&istream, FJALAR_MESSAGE_FIELDS, message);
                 if (ret != true) {
                     LOG_ERR("Could not deocde fjalar message");
-                    return false;
+                    return -1;
                 }
-                return true;
+                return 1;
             }
             LOG_WRN("Invalid checksum");
+            return -1;
             break;
     }
-    return false;
+    return 0;
 }
 
 int get_encoded_message_length(uint8_t *buf) {

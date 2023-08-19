@@ -102,8 +102,8 @@ void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi
     struct fjalar_message msg;
     reset_protocol_state(&ps);
     for (int i = 0; i < size; i++) {
-        bool had_msg = parse_fjalar_message(&ps, buf[i], &msg);
-        if (had_msg && i == size) {
+        int had_msg = parse_fjalar_message(&ps, buf[i], &msg);
+        if (had_msg == 1 && i == size) {
             send_to_gs(tracker_lora, buf, size);
             handle_fjalar_message(tracker_lora, &msg);
         }
@@ -152,7 +152,7 @@ void uart_thread(tracker_t *tracker, void* p2, void* p3) {
 	}
 	struct protocol_state ps;
 	reset_protocol_state(&ps);
-    uint8_t rx_buf[300]; //TODO: please mangage lengths properly
+    uint8_t rx_buf[PROTOCOL_BUFFER_LENGTH]; //TODO: please mangage lengths properly
     uint8_t rx_index = 0;
 	while(1) {
 		// rx
@@ -166,11 +166,14 @@ void uart_thread(tracker_t *tracker, void* p2, void* p3) {
                 rx_index++;
             }
             fjalar_message_t msg;
-            bool got_msg = parse_fjalar_message(&ps, byte, &msg);
-            if (got_msg) {
+            int got_msg = parse_fjalar_message(&ps, byte, &msg);
+            if (got_msg == 1) {
                 LOG_INF("received message from telemetry_uart");
                 handle_fjalar_message(tracker, &msg);
                 send_to_gs(tracker, rx_buf, rx_index);
+                rx_index = 0;
+            } else
+            if (got_msg == -1) {
                 rx_index = 0;
             }
 			continue;

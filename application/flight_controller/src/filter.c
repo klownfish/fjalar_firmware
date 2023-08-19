@@ -20,6 +20,7 @@ void window_insert(window_t *filter, float value) {
         for (int i = 0; i < filter->size; i++) {
             filter->values[i] = value;
         }
+        filter->index = 0;
     }
     filter->values[filter->index] = value;
     filter->index = (filter->index + 1) % filter->size;
@@ -61,9 +62,9 @@ float window_get_newest(window_t *filter) {
 }
 
 void altitude_filter_init(altitude_filter_t *kf) {
-    float process_noise = 0.01;
+    float process_noise = 0.001;
     float measurement_noise = 10;
-    float accel_noise = 0.001;
+    float accel_noise = 0.01;
 
     float P_init[9] = {
         process_noise, 0, 0,

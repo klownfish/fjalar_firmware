@@ -11,7 +11,7 @@
 LOG_MODULE_REGISTER(flight, CONFIG_APP_FLIGHT_LOG_LEVEL);
 
 #define FLIGHT_THREAD_PRIORITY 7
-#define FLIGHT_THREAD_STACK_SIZE 1024
+#define FLIGHT_THREAD_STACK_SIZE 4096
 
 #define ALTITUDE_PRIMARY_WINDOW_SIZE 5
 #define ALTITUDE_SECONDARY_WINDOW_SIZE 40
@@ -43,7 +43,7 @@ void init_flight_state(fjalar_t *fjalar) {
 
 static float pressure_to_altitude(float pressure) {
     // ISA constants
-    const double P0 = 101.3250;     // Sea-level pressure in Pa
+    const double P0 = 1013.250;     // Sea-level pressure in Pa
     const double T0 = 288.15;       // Sea-level temperature in K
     const double L = 0.0065;        // Temperature lapse rate in K/m
     const double g = 9.81;          // Gravitational acceleration constant in m/s^2
@@ -147,6 +147,7 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
     while (true) {
         if (k_poll(events, 2, K_MSEC(1000))) {
             LOG_ERR("Stopped receiving measurements");
+            continue;
         }
 
         if (k_msgq_get(&pressure_msgq, &pressure, K_NO_WAIT) == 0) {
@@ -163,7 +164,8 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             if (fjalar->flight_state == STATE_LAUNCHPAD) {
                 fjalar->ground_level = fjalar->altitude;
             }
-            LOG_DBG("Altitude: %f %f", fjalar->altitude - fjalar->ground_level, raw_altitude);
+            LOG_INF("Altitude relative %f raw %f", fjalar->altitude - fjalar->ground_level, raw_altitude);
+            LOG_INF("velocity %f", fjalar->velocity);
         }
         if (k_msgq_get(&imu_msgq, &imu, K_NO_WAIT) == 0) {
             events[1].state = K_POLL_STATE_NOT_READY;
@@ -207,8 +209,6 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
                     quat_copy(tmp, acc_correction_quat);
                     quat_mul(acc_correction_quat, tmp, extra_correction);
                 }
-
-
                 quat_normalize(acc_correction_quat);
             }
             vec3 acceleration = {ax, ay, az};
@@ -222,8 +222,10 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             && (fjalar->flight_state == STATE_LAUNCHPAD || fjalar->flight_state == STATE_IDLE)) {
                 LOG_ERR("Acceleration is negative on the launchpad");
             }
+
             LOG_DBG("Acceleration: %f %f %f", fjalar->ax, fjalar->ay, fjalar->az);
         }
         evaluate_state(fjalar);
+        k_msleep(1);
     }
 }

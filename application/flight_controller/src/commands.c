@@ -17,7 +17,7 @@ void handle_fjalar_buf(struct protocol_state *ps, fjalar_t *fjalar, uint8_t buf[
     for (int i = 0; i < len; i++) {
         int ret;
         ret = parse_fjalar_message(ps, buf[i], &msg);
-        if (ret) {
+        if (ret == 1) {
             handle_fjalar_message(&msg, fjalar, channel);
         }
     }
