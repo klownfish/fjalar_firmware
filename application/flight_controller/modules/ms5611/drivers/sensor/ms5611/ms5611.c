@@ -6,7 +6,7 @@
 
 #define DT_DRV_COMPAT meas_ms5611
 
-#include <zephyr/zephyr.h>
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/i2c.h>

@@ -35,6 +35,7 @@ typedef struct {
     uint32_t apogee_at;
     bool sudo;
     uint32_t flash_address;
+    uint32_t flash_size;
 } fjalar_t;
 
 extern fjalar_t fjalar_god;

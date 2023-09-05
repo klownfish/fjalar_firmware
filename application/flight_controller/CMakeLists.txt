@@ -25,3 +25,4 @@ add_subdirectory(../common ../build/common)
 
 add_subdirectory(lib)
 target_link_libraries(app PRIVATE protocol)
+target_link_libraries(app PRIVATE minmea)

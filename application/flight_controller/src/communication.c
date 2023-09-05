@@ -13,22 +13,22 @@
 LOG_MODULE_REGISTER(communication, CONFIG_APP_COMMUNICATION_LOG_LEVEL);
 
 #define LORA_THREAD_PRIORITY 7
-#define LORA_THREAD_STACK_SIZE 1024
+#define LORA_THREAD_STACK_SIZE 2048
 
 #define FLASH_THREAD_PRIORITY 7
-#define FLASH_THREAD_STACK_SIZE 1024
+#define FLASH_THREAD_STACK_SIZE 2048
 
 #define UART_THREAD_PRIORITY 7
-#define UART_THREAD_STACK_SIZE 1024
+#define UART_THREAD_STACK_SIZE 2048
 
 #define USB_THREAD_PRIORITY 7
-#define USB_THREAD_STACK_SIZE 1024
+#define USB_THREAD_STACK_SIZE 2048
 
 #define SAMPLER_THREAD_PRIORITY 7
-#define SAMPLER_THREAD_STACK_SIZE 1024
+#define SAMPLER_THREAD_STACK_SIZE 2048
 
-#define LORA_TRANSMIT 1
-#define LORA_RECEIVE 0
+#define LORA_TRANSMIT true
+#define LORA_RECEIVE false
 
 K_THREAD_STACK_DEFINE(sampler_thread_stack, SAMPLER_THREAD_STACK_SIZE);
 struct k_thread sampler_thread_data;
@@ -61,6 +61,7 @@ K_THREAD_STACK_DEFINE(flash_thread_stack, FLASH_THREAD_STACK_SIZE);
 struct k_thread flash_thread_data;
 k_tid_t flash_thread_id;
 void flash_thread(fjalar_t *fjalar, void *p2, void *p3);
+K_MUTEX_DEFINE(flash_mutex);
 #endif
 
 struct padded_buf {
@@ -90,6 +91,7 @@ void init_communication(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		LORA_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(lora_thread_id, "lora");
 	#endif
 
 	#if DT_ALIAS_EXISTS(data_usb)
@@ -101,6 +103,7 @@ void init_communication(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		USB_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(usb_thread_id, "data usb");
 	#endif
 
 	#if DT_ALIAS_EXISTS(data_flash)
@@ -112,6 +115,7 @@ void init_communication(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		FLASH_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(flash_thread_id, "data flash");
 	#endif
 
 	#if DT_ALIAS_EXISTS(external_uart)
@@ -123,6 +127,7 @@ void init_communication(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		UART_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(uart_thread_id, "external uart");
 	#endif
 
 	sampler_thread_id = k_thread_create(
@@ -133,6 +138,7 @@ void init_communication(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		SAMPLER_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(sampler_thread_id, "sampler");
 }
 
 void send_message(fjalar_t *fjalar, fjalar_message_t *msg, enum message_priority prio) {
@@ -250,57 +256,160 @@ void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		LOG_ERR("Flash not ready");
 		return;
 	}
+	const uint8_t flash_reset_value = 0xff;
+	fjalar->flash_address = 0;
+	fjalar->flash_size = DT_PROP(DT_ALIAS(data_flash), size) / 8;
+	int chunk_size = 500;
+	int num_cleared_values = 0;
+	int chunk_start = 0;
+	int ret;
+	uint8_t buf[chunk_size];
+	// LOG_DBG("Erasing flash");
+	// k_msleep(100);
+	// flash_erase(flash_dev, 0, fjalar->flash_size);
+	// LOG_DBG("Erasing done");
+	k_mutex_lock(&flash_mutex, K_FOREVER);
+	while (true) {
+		chunk_size = MIN(chunk_size, fjalar->flash_size - fjalar->flash_address);
+		if (chunk_size < 1) {
+			goto end;
+		}
+		// LOG_DBG("reading chunk %d", fjalar->flash_address);
+		ret = flash_read(flash_dev, fjalar->flash_address, buf, chunk_size);
+		if (ret != 0) {
+			LOG_ERR("Flash startup read fail");
+			return;
+		}
+		k_msleep(1);
+		chunk_start = fjalar->flash_address;
+		fjalar->flash_address = fjalar->flash_address + chunk_size;
+		for (int i = 0; i < chunk_size; i++) {
+			if (buf[i] == flash_reset_value) {
+				num_cleared_values += 1;
+			} else {
+				num_cleared_values = 0;
+			}
+			if (num_cleared_values == chunk_size) {
+				fjalar->flash_address = chunk_start + i - num_cleared_values + 1;
+				LOG_INF("found good address at %d", fjalar->flash_address);
+				goto end;
+			}
+		}
+
+	}
+	end:
+	k_mutex_unlock(&flash_mutex);
+	LOG_WRN("initialized flash index to %d", fjalar->flash_address);
+	k_msleep(10);
+	while (true) {
+		int ret;
+		struct padded_buf pbuf;
+		ret = k_msgq_get(&flash_msgq, &pbuf, K_FOREVER);
+        if (ret == 0) {
+			int size = get_encoded_message_length(pbuf.buf);
+			k_mutex_lock(&flash_mutex, K_FOREVER);
+			if (fjalar->flash_address + size >= fjalar->flash_size) {
+				continue;
+			}
+			LOG_INF("wrote to flash address %d", fjalar->flash_address);
+			int ret = flash_write(flash_dev, fjalar->flash_address, pbuf.buf, size);
+			if (ret) {
+				LOG_ERR("Could not write to flash");
+			} else {
+				fjalar->flash_address += size;
+			}
+			k_mutex_unlock(&flash_mutex);
+        } else {
+            LOG_ERR("flash msgq error");
+        }
+	}
 }
 #endif
 
 #if DT_ALIAS_EXISTS(lora)
-void lora_configure(const struct device *dev, bool transmit) {
-    struct lora_modem_config config;
-    config.bandwidth = BW_500_KHZ;
-    config.coding_rate = CR_4_8;
-    config.datarate = 0; // what is this
-    config.frequency = 437000000;
-    config.iq_inverted = false;
-    config.preamble_len = 8; //LoRa WAN uses this so I guess it's good
-    config.public_network = false;
+int lora_configure(const struct device *dev, bool transmit) {
+    // struct lora_modem_config config;
+    struct lora_modem_config config = PROTOCOL_ZEPHYR_LORA_CONFIG;
     config.tx = transmit;
-    config.tx_power = 20;
-    lora_config(dev, &config);
+	config.tx_power = 20;
+    int ret = lora_config(dev, &config);
+	if (ret < 0) {
+		LOG_ERR("Could not configure lora %d", ret);
+	}
+	return ret;
 }
+
+struct lora_rx {
+	uint8_t buf[PROTOCOL_BUFFER_LENGTH];
+	uint16_t size;
+	int16_t rssi;
+	int8_t snr;
+} __attribute__((aligned(4)));
+
+K_MSGQ_DEFINE(lora_rx_msgq, sizeof(struct lora_rx), 5, 4);
 
 void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi, int8_t snr) {
-    struct protocol_state ps;
-    reset_protocol_state(&ps);
-	handle_fjalar_buf(&ps, &fjalar_god, buf, size, COM_CHAN_LORA);
+    struct lora_rx rx;
+	rx.size = MIN(size, PROTOCOL_BUFFER_LENGTH);
+	memcpy(rx.buf, buf, rx.size);
+	rx.rssi = rssi;
+	rx.snr = snr;
+	k_msgq_put(&lora_rx_msgq, &rx, K_NO_WAIT);
 }
 
-void lora_thread(fjalar_t *tracker, void* p2, void* p3) {
+void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
     const struct device *lora_dev = DEVICE_DT_GET(DT_ALIAS(lora));
-    struct lora_modem_config config;
-    config.bandwidth = BW_500_KHZ;
-    config.coding_rate = CR_4_8;
-    config.datarate = 0; // what is this
-    config.frequency = 437000000;
-    config.iq_inverted = false;
-    config.preamble_len = 8; //LoRa WAN uses this so I guess it's good
-    config.public_network = false;
-    config.tx = true;
-    config.tx_power = 20;
     if (!device_is_ready(lora_dev)) {
         LOG_ERR("LoRa is not ready");
+		return;
     }
+	struct lora_rx rx;
     while (true) {
         int ret;
-        struct padded_buf buf;
-        lora_configure(lora_dev, LORA_RECEIVE);
-        lora_recv_async(lora_dev, (lora_recv_cb) lora_cb);
-        ret = k_msgq_get(&lora_msgq, &buf, K_FOREVER);
+        struct padded_buf pbuf;
+		struct k_poll_event events[2] = {
+			K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
+											K_POLL_MODE_NOTIFY_ONLY,
+											&lora_msgq),
+			K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
+											K_POLL_MODE_NOTIFY_ONLY,
+											&lora_rx_msgq),
+		};
+
+        ret = lora_configure(lora_dev, LORA_RECEIVE);
+		if (ret) {
+			LOG_ERR("LoRa rx configure failed");
+		} else {
+			LOG_DBG("LoRa rxing");
+		}
+		lora_recv_async(lora_dev, lora_cb);
+		// k_poll(&events[1], 2, K_MSEC(10000)); //poll only rx first to not interrupt messages
+		k_poll(events, 2, K_FOREVER);
+
+		ret = k_msgq_get(&lora_rx_msgq, &rx, K_NO_WAIT);
         if (ret == 0) {
-            lora_configure(lora_dev, LORA_TRANSMIT);
-            int size = get_encoded_message_length(buf.buf);
-            lora_send(lora_dev, buf.buf, size);
-        } else {
-            LOG_ERR("lora msgq error");
+			events[1].state = K_POLL_STATE_NOT_READY;
+			LOG_INF("received LoRa msg");
+			struct protocol_state ps;
+			reset_protocol_state(&ps);
+			handle_fjalar_buf(&ps, fjalar, rx.buf, rx.size, COM_CHAN_LORA);
+        }
+
+        ret = k_msgq_get(&lora_msgq, &pbuf, K_NO_WAIT);
+        if (ret == 0) {
+			events[0].state = K_POLL_STATE_NOT_READY;
+			lora_recv_async(lora_dev, NULL);
+            ret = lora_configure(lora_dev, LORA_TRANSMIT);
+			if (ret) {
+				LOG_ERR("LORA tx configure failed");
+			}else {
+				LOG_DBG("LoRa txing");
+			}
+            int size = get_encoded_message_length(pbuf.buf);
+            ret = lora_send(lora_dev, pbuf.buf, size);
+			if (ret) {
+				LOG_ERR("Could not send LoRa message");
+			}
         }
     }
 }

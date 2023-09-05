@@ -56,7 +56,7 @@
 			gpios = <&gpio0 11 (GPIO_ACTIVE_LOW)>;
 		};
 
-        debounce-interval-ms = < 50 >;
+        debounce-interval-ms = < 100 >;
 	};
 
 	/* These aliases are provided for compatibility with samples */
@@ -91,7 +91,7 @@
 			reg = <0>;
 			spi-max-frequency = <10000000>;
 			status = "okay";
-			reset-gpios = <&gpio0 25 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
+			reset-gpios = <&gpio0 25 (GPIO_ACTIVE_LOW)>; //maybe open drain idk
 			dio1-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
 			busy-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
 		};

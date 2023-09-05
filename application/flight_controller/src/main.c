@@ -16,14 +16,24 @@
 #include "sensors.h"
 #include "flight_state.h"
 #include "communication.h"
+#include "actuation.h"
 
 LOG_MODULE_REGISTER(main, CONFIG_APP_MAIN_LOG_LEVEL);
 
 fjalar_t fjalar_god;
 
 int main(void) {
+	#ifdef CONFIG_DELAYED_START
+	const int delay = 5;
+	for (int i = 0; i < delay; i++) {
+		printk("%d\n", delay - i);
+		k_msleep(1000);
+	}
+	#endif
+	printk("Started\n");
 	init_sensors(&fjalar_god);
 	init_flight_state(&fjalar_god);
 	init_communication(&fjalar_god);
+	init_actuation(&fjalar_god);
 	return 0;
 }

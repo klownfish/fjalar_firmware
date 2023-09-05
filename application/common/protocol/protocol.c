@@ -46,16 +46,25 @@ int parse_fjalar_message(struct protocol_state *ps, uint8_t byte, fjalar_message
             LOG_DBG("Alignment byte: %d", byte);
             if (byte == PROTOCOL_ALIGNMENT_BYTE) {
                 ps->state = PROT_STATE_LENGTH;
+            } else {
+                LOG_WRN("Invalid alignment byte %d", byte);
             }
             break;
         case PROT_STATE_LENGTH:
             LOG_DBG("State byte: %d", byte);
             ps->state = PROT_STATE_DATA;
+            if (!(byte < PROTOCOL_BUFFER_LENGTH)) {
+                LOG_ERR("message is too long");
+                ps->state = PROT_STATE_ALIGNMENT;
+                return -1;
+            }
             ps->length = byte;
             break;
         case PROT_STATE_DATA:
             LOG_DBG("Data byte: %d", byte);
-            ps->data[ps->data_index] = byte;
+            if (ps->data_index < sizeof(ps->data)) {
+                ps->data[ps->data_index] = byte;
+            }
             ps->data_index++;
             if (ps->data_index == ps->length) {
                 ps->state = PROT_STATE_CHECKSUM0;

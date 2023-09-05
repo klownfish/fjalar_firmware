@@ -22,18 +22,25 @@ void button_callback(const struct device *dev, struct gpio_callback *cb, uint32_
     int next_frame = (tracker_god.current_frame + 1) % (FRAME_MAX);
     tracker_god.current_frame = next_frame;
 
-    if (k_uptime_get_32() - last_press < 150) {
+    if (k_uptime_get_32() - last_press < 500) {
         tracker_god.current_frame = next_frame;
         int next_frame = (tracker_god.current_frame - 2) % (FRAME_MAX);
         tracker_god.current_frame = next_frame;
-
-        // do action
+        last_press = 0;
+    } else  {
+        last_press = k_uptime_get_32();
     }
-    last_press = k_uptime_get_32();
 }
 
 int main(void)
 {
+    #ifdef CONFIG_DELAYED_START
+	const int delay = 10;
+	for (int i = 0; i < delay; i++) {
+		printk("%d\n", delay - i);
+		k_msleep(1000);
+	}
+	#endif
     init_display(&tracker_god);
     init_communication(&tracker_god);
 

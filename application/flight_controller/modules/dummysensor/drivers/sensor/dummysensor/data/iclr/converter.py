@@ -30,7 +30,7 @@ baro_length = 0
 for row in reader:
     if row[0] == "pn":
         continue
-    line = "{" + str(float(row[38]) / div) + "," + str(float(row[30]) / 100) + "},\n"
+    line = "{" + str(float(row[38]) / div) + "," + str(float(row[30]) / 1000) + "},\n"
     out.write(line)
     baro_length += 1
 out.write("};\n\n")

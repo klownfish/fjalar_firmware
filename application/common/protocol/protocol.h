@@ -35,3 +35,15 @@ void reset_protocol_state(struct protocol_state *ps);
 int parse_fjalar_message(struct protocol_state *ps, uint8_t byte, fjalar_message_t *message);
 
 int get_encoded_message_length(uint8_t *buf);
+
+#define PROTOCOL_ZEPHYR_LORA_CONFIG { \
+    .bandwidth = BW_250_KHZ, \
+    .coding_rate = CR_4_5, \
+    .datarate = 	SF_8, \
+    .frequency = 433000000, \
+    .iq_inverted = false, \
+    .preamble_len = 8, \
+    .public_network = false, \
+    .tx = 0, \
+    .tx_power = 20 \
+};

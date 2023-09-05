@@ -13,13 +13,13 @@ LOG_MODULE_REGISTER(com, CONFIG_APP_COM_LOG_LEVEL);
 #define LORA_RECEIVE 0
 
 #define LORA_THREAD_PRIORITY 7
-#define LORA_THREAD_STACK_SIZE 1024
+#define LORA_THREAD_STACK_SIZE 4096
 
 #define USB_THREAD_PRIORITY 7
-#define USB_THREAD_STACK_SIZE 1024
+#define USB_THREAD_STACK_SIZE 4096
 
 #define UART_THREAD_PRIORITY 7
-#define UART_THREAD_STACK_SIZE 1024
+#define UART_THREAD_STACK_SIZE 4096
 
 #if DT_ALIAS_EXISTS(telemetry_lora)
 K_THREAD_STACK_DEFINE(lora_thread_stack, LORA_THREAD_STACK_SIZE);
@@ -83,61 +83,101 @@ void send_to_fc(tracker_t *tracker, uint8_t *buf, int len) {
 }
 
 #if DT_ALIAS_EXISTS(telemetry_lora)
-void lora_configure(const struct device *dev, bool transmit) {
-    struct lora_modem_config config;
-    config.bandwidth = BW_500_KHZ;
-    config.coding_rate = CR_4_8;
-    config.datarate = 0; // what is this
-    config.frequency = 437000000;
-    config.iq_inverted = false;
-    config.preamble_len = 8; //LoRa WAN uses this so I guess it's good
-    config.public_network = false;
+int lora_configure(const struct device *dev, bool transmit) {
+    // struct lora_modem_config config;
+    struct lora_modem_config config = PROTOCOL_ZEPHYR_LORA_CONFIG;
     config.tx = transmit;
-    config.tx_power = 20;
-    lora_config(dev, &config);
+	config.tx_power = 20;
+    int ret = lora_config(dev, &config);
+	if (ret < 0) {
+		LOG_ERR("Could not configure lora %d", ret);
+	}
+	return ret;
 }
-tracker_t *tracker_lora;
+
+struct lora_rx {
+	uint8_t buf[PROTOCOL_BUFFER_LENGTH];
+	uint16_t size;
+	int16_t rssi;
+	int8_t snr;
+} __attribute__((aligned(4)));
+
+K_MSGQ_DEFINE(lora_rx_msgq, sizeof(struct lora_rx), 5, 4);
+
 void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi, int8_t snr) {
-    struct protocol_state ps;
-    struct fjalar_message msg;
-    reset_protocol_state(&ps);
-    for (int i = 0; i < size; i++) {
-        int had_msg = parse_fjalar_message(&ps, buf[i], &msg);
-        if (had_msg == 1 && i == size) {
-            send_to_gs(tracker_lora, buf, size);
-            handle_fjalar_message(tracker_lora, &msg);
-        }
-    }
+    struct lora_rx rx;
+	rx.size = MIN(size, PROTOCOL_BUFFER_LENGTH);
+	memcpy(rx.buf, buf, rx.size);
+	rx.rssi = rssi;
+	rx.snr = snr;
+	k_msgq_put(&lora_rx_msgq, &rx, K_NO_WAIT);
 }
 
 void lora_thread(tracker_t *tracker, void* p2, void* p3) {
     const struct device *lora_dev = DEVICE_DT_GET(DT_ALIAS(telemetry_lora));
-    struct lora_modem_config config;
-    config.bandwidth = BW_500_KHZ;
-    config.coding_rate = CR_4_8;
-    config.datarate = 0; // what is this
-    config.frequency = 437000000;
-    config.iq_inverted = false;
-    config.preamble_len = 8; //LoRa WAN uses this so I guess it's good
-    config.public_network = false;
-    config.tx = true;
-    config.tx_power = 20;
-    tracker_lora = tracker;
     if (!device_is_ready(lora_dev)) {
         LOG_ERR("LoRa is not ready");
+        return;
     }
+    struct lora_rx rx;
+    int ret;
+    struct padded_buf pbuf;
+    fjalar_message_t msg;
     while (true) {
-        int ret;
-        struct padded_buf buf;
-        lora_configure(lora_dev, LORA_RECEIVE);
-        lora_recv_async(lora_dev, (lora_recv_cb) lora_cb);
-        ret = k_msgq_get(&lora_msgq, &buf, K_FOREVER);
+		struct k_poll_event events[2] = {
+			K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
+											K_POLL_MODE_NOTIFY_ONLY,
+											&lora_msgq),
+			K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
+											K_POLL_MODE_NOTIFY_ONLY,
+											&lora_rx_msgq),
+		};
+
+        ret = lora_configure(lora_dev, LORA_RECEIVE);
+		if (ret) {
+			LOG_ERR("LoRa rx configure failed");
+		} else {
+			LOG_DBG("LoRa rxing");
+		}
+		lora_recv_async(lora_dev, lora_cb);
+        LOG_DBG("HAHA YEESSSS");
+		k_poll(&events[1], 2, K_MSEC(10000)); //poll only rx first to not interrupt messages
+		k_poll(events, 2, K_FOREVER);
+
+		ret = k_msgq_get(&lora_rx_msgq, &rx, K_NO_WAIT);
         if (ret == 0) {
-            lora_configure(lora_dev, LORA_TRANSMIT);
-            int size = get_encoded_message_length(buf.buf);
-            lora_send(lora_dev, buf.buf, size);
-        } else {
-            LOG_ERR("lora msgq error");
+			events[1].state = K_POLL_STATE_NOT_READY;
+			LOG_INF("received LoRa");
+			struct protocol_state ps;
+			reset_protocol_state(&ps);
+            for (int i = 0; i < rx.size; i++) {
+                int got_msg = parse_fjalar_message(&ps, rx.buf[i], &msg);
+                if (got_msg == 1 && i == rx.size) {
+                    LOG_INF("parsed message from lora");
+                    handle_fjalar_message(tracker, &msg);
+                    send_to_gs(tracker, rx.buf, rx.size);
+                } else
+                if (got_msg == -1) {
+                    LOG_ERR("Invalid message from lora");
+                }
+            }
+        }
+
+        ret = k_msgq_get(&lora_msgq, &pbuf, K_NO_WAIT);
+        if (ret == 0) {
+			events[0].state = K_POLL_STATE_NOT_READY;
+			lora_recv_async(lora_dev, NULL);
+            ret = lora_configure(lora_dev, LORA_TRANSMIT);
+			if (ret) {
+				LOG_ERR("LORA tx configure failed");
+			}else {
+				LOG_DBG("LoRa txing");
+			}
+            int size = get_encoded_message_length(pbuf.buf);
+            ret = lora_send(lora_dev, pbuf.buf, size);
+			if (ret) {
+				LOG_ERR("Could not send LoRa message");
+			}
         }
     }
 }

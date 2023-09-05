@@ -25,8 +25,23 @@
 		external-uart = &uart4;
 		data-flash = &w25q128;
 		gps-uart = &usart1;
-		buzzer = &pwm_buzzer;
+		buzzer = &buzzer;
 		lora = &lora;
+		bat-adc = &bat_adc;
+	};
+
+	zephyr,user {
+		bat_numer = <2200>;
+		bat_denom = <12200>;
+	};
+
+	pwmleds: pwmleds {
+		compatible = "pwm-leds";
+		status = "okay";
+
+		buzzer: buzzer {
+			pwms = <&pwm2 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+		};
 	};
 };
 
@@ -59,8 +74,22 @@
 		compatible ="jedec,spi-nor";
 		size = <0x8000000>;
 		reg = <1>;
-		spi-max-frequency = <10000000>;
+		spi-max-frequency = <50000000>;
 		status = "okay";
 		jedec-id = [ef 70 18];
+	};
+};
+
+&adc1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	bat_adc: bat_adc@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <14>;
+		zephyr,oversampling = <4>;
 	};
 };

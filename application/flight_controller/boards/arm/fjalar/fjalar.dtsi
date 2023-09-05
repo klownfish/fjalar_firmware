@@ -113,7 +113,7 @@
 			&spi1_miso_pb4 &spi1_mosi_pb5>;
 	pinctrl-names = "default";
 	cs-gpios = <&gpioc 13 GPIO_ACTIVE_LOW>, <&gpioa 15 GPIO_ACTIVE_LOW>;
-	clock-frequency = <1000000>;
+	clock-frequency = <50000000>;
 	status = "okay";
 };
 
@@ -124,13 +124,13 @@
 };
 
 &timers2 {
-	st,prescaler = <10000>;
+	st,prescaler = <1000>;
 	status = "okay";
 
-	pwm_buzzer: pwm {
-	pinctrl-0 = <&tim2_ch4_pa3>;
-		pinctrl-names = "default";
+	pwm2: pwm {
 		status = "okay";
+		pinctrl-0 = <&tim2_ch4_pa3>;
+		pinctrl-names = "default";
 	};
 };
 

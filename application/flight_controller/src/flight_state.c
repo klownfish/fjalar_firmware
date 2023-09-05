@@ -39,11 +39,12 @@ void init_flight_state(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		FLIGHT_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(flight_thread_id, "flight state");
 }
 
 static float pressure_to_altitude(float pressure) {
     // ISA constants
-    const double P0 = 1013.250;     // Sea-level pressure in Pa
+    const double P0 = 101.3250;     // Sea-level pressure in Pa
     const double T0 = 288.15;       // Sea-level temperature in K
     const double L = 0.0065;        // Temperature lapse rate in K/m
     const double g = 9.81;          // Gravitational acceleration constant in m/s^2
@@ -122,6 +123,12 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
                                         &imu_msgq),
     };
 
+    fjalar->ground_level = 0;
+    fjalar->ax = 0;
+    fjalar->ay = 0;
+    fjalar->az = 9.8;
+    fjalar->altitude = 0;
+    fjalar->velocity = 0;
     altitude_filter_t altitude_filter;
     altitude_filter_init(&altitude_filter);
 
@@ -137,13 +144,18 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
     struct pressure_queue_entry pressure;
     struct imu_queue_entry imu;
 
-    k_poll(&events[0], 1, K_FOREVER);
-    k_poll(&events[1], 1, K_FOREVER);
+    // k_poll(&events[0], 1, K_FOREVER);
+    // k_poll(&events[1], 1, K_FOREVER);
     events[0].state = K_POLL_STATE_NOT_READY;
     events[1].state = K_POLL_STATE_NOT_READY;
     quat acc_correction_quat = {0, 0, 0, 1};
-    fjalar->flight_state = STATE_LAUNCHPAD;
 
+    #ifdef CONFIG_BOOT_STATE_LAUNCHPAD
+    fjalar->flight_state = STATE_LAUNCHPAD;
+    #endif
+    #ifdef CONFIG_BOOT_STATE_IDLE
+    fjalar->flight_state = STATE_IDLE;
+    #endif
     while (true) {
         if (k_poll(events, 2, K_MSEC(1000))) {
             LOG_ERR("Stopped receiving measurements");
@@ -164,8 +176,8 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             if (fjalar->flight_state == STATE_LAUNCHPAD) {
                 fjalar->ground_level = fjalar->altitude;
             }
-            LOG_INF("Altitude relative %f raw %f", fjalar->altitude - fjalar->ground_level, raw_altitude);
-            LOG_INF("velocity %f", fjalar->velocity);
+            LOG_DBG("Altitude relative %f raw %f", fjalar->altitude - fjalar->ground_level, raw_altitude);
+            LOG_DBG("velocity %f", fjalar->velocity);
         }
         if (k_msgq_get(&imu_msgq, &imu, K_NO_WAIT) == 0) {
             events[1].state = K_POLL_STATE_NOT_READY;
@@ -175,41 +187,41 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             float ax = window_get_median(&ax_filter);
             float ay = window_get_median(&ay_filter);
             float az = window_get_median(&az_filter);
+
             if (fjalar->flight_state == STATE_LAUNCHPAD
             || fjalar->flight_state == STATE_IDLE) {
-                const float pi = SENSOR_PI / 1000000.0;
-                bool inverted = false;
                 vec3 measured_vector = {ax, ay, az};
-                // acc_correction_scale = (SENSOR_G / 1000000.0) / vec3_norm(measured_vector);
                 vec3_normalize(measured_vector);
+                bool upside_down = false;
                 vec3 gravity_vector = {0, 0, 1};
                 float dot_product = vec3_mul_inner(gravity_vector, measured_vector);
-                float angle_diff = acosf(dot_product);
-                if (angle_diff > pi) {
-                    angle_diff = -(pi - angle_diff);
-                    inverted = true;
+                if (dot_product < 0) {
+                    // The sensor is upside down
+                    dot_product = -dot_product;
+                    measured_vector[0] = -measured_vector[0];
+                    measured_vector[1] = -measured_vector[1];
+                    measured_vector[2] = -measured_vector[2];
+                    upside_down = true;
                 }
-                float cos_theta2 = acosf(angle_diff / 2);
-                float sin_theta2 = asinf(angle_diff / 2);
-                vec3 cross_product;
-                vec3_mul_cross_n(cross_product, gravity_vector, measured_vector);
-
-                acc_correction_quat[0] = -cross_product[0] * sin_theta2;
-                acc_correction_quat[1] = -cross_product[1] * sin_theta2;
-                acc_correction_quat[2] = -cross_product[2] * sin_theta2;
+                float angle_diff;
+                vec3 rotation_axis;
+                if (upside_down) {
+                    angle_diff = acosf(dot_product) + SENSOR_PI / 1000000;
+                } else {
+                    angle_diff = acosf(dot_product);
+                }
+                vec3_mul_cross_n(rotation_axis, gravity_vector, measured_vector);
+                float cos_theta2 = cosf(angle_diff / 2);
+                float sin_theta2 = sinf(angle_diff / 2);
+                vec3_mul_cross_n(rotation_axis, measured_vector, gravity_vector);
+                acc_correction_quat[0] = rotation_axis[0] * sin_theta2;
+                acc_correction_quat[1] = rotation_axis[1] * sin_theta2;
+                acc_correction_quat[2] = rotation_axis[2] * sin_theta2;
                 acc_correction_quat[3] = cos_theta2;
-                if (inverted) {
-                    quat extra_correction = {
-                        1,
-                        0,
-                        0,
-                        0
-                    };
-                    quat tmp;
-                    quat_copy(tmp, acc_correction_quat);
-                    quat_mul(acc_correction_quat, tmp, extra_correction);
-                }
                 quat_normalize(acc_correction_quat);
+                vec3 acceleration_corrected;
+                vec3 acceleration = {ax, ay, az};
+                quat_mul_vec3(acceleration_corrected, acc_correction_quat, acceleration);
             }
             vec3 acceleration = {ax, ay, az};
             vec3 acceleration_corrected = {ax, ay, az};
@@ -219,13 +231,14 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             fjalar->ay = acceleration_corrected[1];
             fjalar->az = acceleration_corrected[2];
             if (fjalar->az < 0
-            && (fjalar->flight_state == STATE_LAUNCHPAD || fjalar->flight_state == STATE_IDLE)) {
+            && (fjalar->flight_state == STATE_LAUNCHPAD)) {
                 LOG_ERR("Acceleration is negative on the launchpad");
             }
 
             LOG_DBG("Acceleration: %f %f %f", fjalar->ax, fjalar->ay, fjalar->az);
         }
         evaluate_state(fjalar);
-        k_msleep(1);
+        LOG_DBG("state %d", fjalar->flight_state);
+        // k_msleep(1);
     }
 }

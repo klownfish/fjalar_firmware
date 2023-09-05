@@ -5,6 +5,21 @@ endmenu
 rsource "../common/Kconfig"
 
 
+config BUZZER_ENABLED
+    bool "Enable buzzer"
+    default y
+config DELAYED_START
+    bool "delay start"
+    default n
+
+choice
+	prompt "Boot state"
+	config BOOT_STATE_IDLE
+		bool "boot to idle"
+	config BOOT_STATE_LAUNCHPAD
+		bool "boot to launchpad"
+endchoice
+
 config APP_ACTUATION_LOG_LEVEL
     int "Application log level"
     default 2
@@ -24,22 +39,14 @@ config APP_MAIN_LOG_LEVEL
     int "Application filter log level"
     default 2
     depends on LOG
-
-config PROTOCOL_LOG_LEVEL
-    int "Application filter log level"
-    default 2
-    depends on LOG
-
 config APP_SENSORS_LOG_LEVEL
     int "Application filter log level"
     default 2
     depends on LOG
-
 config APP_COMMANDS_LOG_LEVEL
     int "Application filter log level"
     default 2
     depends on LOG
-
 config APP_COMMUNICATION_LOG_LEVEL
     int "Application filter log level"
     default 2

@@ -65,10 +65,10 @@ void drawing_thread(tracker_t *tracker, void *p2, void *p3) {
     while (true) {
         ret = gpio_pin_get_dt(&touch_sw);
         if (last_frame != tracker->current_frame || ret) {
-            k_msleep(200); // for the double click lol
+            k_msleep(500); // for the double click lol
             if (last_frame != tracker->current_frame || ret) {
                 draw_frame(tracker, tracker->current_frame);
-                k_msleep(800);
+                k_msleep(500);
                 last_frame = tracker->current_frame;
             }
         }
