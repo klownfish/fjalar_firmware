@@ -12,7 +12,11 @@
 #include <string.h>
 #include <stdarg.h>
 
+#include <zephyr/logging/log.h>
+
 #define boolstr(s) ((s) ? "true" : "false")
+
+LOG_MODULE_REGISTER(minmea, CONFIG_MINMEA_LOG_LEVEL);
 
 static int hex2int(char c)
 {
@@ -45,9 +49,10 @@ bool minmea_check(const char *sentence, bool strict)
     uint8_t checksum = 0x00;
 
     // A valid sentence starts with "$".
-    if (*sentence++ != '$')
+    if (*sentence++ != '$') {
+        LOG_WRN("Expected $, got %c", *(sentence - 1));
         return false;
-
+    }
     // The optional checksum is an XOR of all bytes between "$" and "*".
     while (*sentence && *sentence != '*' && isprint((unsigned char) *sentence))
         checksum ^= *sentence++;
@@ -65,10 +70,13 @@ bool minmea_check(const char *sentence, bool strict)
         int expected = upper << 4 | lower;
 
         // Check for checksum mismatch.
-        if (checksum != expected)
+        if (checksum != expected) {
+            LOG_WRN("invalid checksum, expected %d got %d", expected, checksum);
             return false;
+        }
     } else if (strict) {
         // Discard non-checksummed frames in strict mode.
+        LOG_DBG("non-checksummed message denied due to strict");
         return false;
     }
 
@@ -78,6 +86,7 @@ bool minmea_check(const char *sentence, bool strict)
     }
 
     if (*sentence) {
+        LOG_WRN("Message is not null-terminated");
         return false;
     }
 

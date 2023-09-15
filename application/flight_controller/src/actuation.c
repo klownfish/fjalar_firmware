@@ -59,7 +59,7 @@ void init_actuation(fjalar_t *fjalar) {
 	);
 	k_thread_name_set(led_thread_id, "led");
 
-	#if DT_ALIAS_EXISTS(bat_adc)
+	#if DT_ALIAS_EXISTS(buzzer)
     buzzer_thread_id = k_thread_create(
 		&buzzer_thread_data,
 		buzzer_thread_stack,
@@ -88,13 +88,32 @@ void led_thread(fjalar_t *fjalar, void *p2, void *p3) {
 
 #if DT_ALIAS_EXISTS(buzzer)
 void buzzer_thread(fjalar_t *fjalar, void *p2, void *p3) {
-    #ifdef CONFIG_BUZZER_ENABLED
+    #if !CONFIG_BUZZER_ENABLED
+    LOG_INF("Buzzer disabled");
     return;
     #endif
+    int err;
+    const struct pwm_dt_spec buzzer_dt = PWM_DT_SPEC_GET(DT_ALIAS(buzzer));
+    if (!device_is_ready(buzzer_dt.dev)) {
+        LOG_ERR("buzzer is not ready");
+        return;
+    }
 
+    uint32_t period = 1e9 / 2000;
+    err = pwm_set_dt(&buzzer_dt, period, period / 2);
+    if (err) {
+        LOG_ERR("Could not set buzzer");
+    }
+
+    while (true) {
+        err = pwm_set_dt(&buzzer_dt, period, period / 2);
+        k_msleep(100);
+        err = pwm_set_dt(&buzzer_dt, period, 0);
+        k_msleep(100);
+        err = pwm_set_dt(&buzzer_dt, period, period / 2);
+        k_msleep(100);
+        err = pwm_set_dt(&buzzer_dt, period, 0);
+        k_msleep(1500);
+    }
 }
 #endif
-
-void pyro_thread(fjalar_t *fjalar, void *p2, void *p3) {
-
-}

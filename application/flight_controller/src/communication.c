@@ -4,6 +4,7 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/console/tty.h>
 #include <zephyr/drivers/lora.h>
+#include <zephyr/drivers/gpio.h>
 
 #include <protocol.h>
 
@@ -151,12 +152,12 @@ void send_message(fjalar_t *fjalar, fjalar_message_t *msg, enum message_priority
 	LOG_DBG("sending message w/ size %d", size);
 	switch(prio) {
 		case MSG_PRIO_LOW:
-			if (fjalar->flight_state == STATE_IDLE) {
+			if (fjalar->flight_state == STATE_IDLE || fjalar->flight_state == STATE_LANDED) {
 				break;
 			}
 			#if DT_ALIAS_EXISTS(data_flash)
 			if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
-				LOG_WRN("could not insert into flash msgq");
+				LOG_INF("could not insert into flash msgq");
 			}
 			#endif
 			#if DT_ALIAS_EXISTS(external_uart)
@@ -164,17 +165,17 @@ void send_message(fjalar_t *fjalar, fjalar_message_t *msg, enum message_priority
 				LOG_WRN("could not insert into uart msgq");
 			}
 			#endif
-			#if DT_ALIAS_EXISTS(data_usb)
-			if (k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT)) {
-				LOG_INF("could not insert data usb msgq");
-			}
-			#endif
+			// #if DT_ALIAS_EXISTS(data_usb)
+			// if (k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT)) {
+			// 	LOG_INF("could not insert data usb msgq");
+			// }
+			// #endif
 			break;
 
 		case MSG_PRIO_HIGH:
 			#if DT_ALIAS_EXISTS(data_flash)
 			if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
-				LOG_WRN("could not insert into flash msgq");
+				LOG_INF("could not insert into flash msgq");
 			}
 			#endif
 			#if DT_ALIAS_EXISTS(lora)
@@ -210,7 +211,7 @@ void send_response(fjalar_t *fjalar, fjalar_message_t *msg, enum com_channels ch
 	}
 	#if DT_ALIAS_EXISTS(data_flash)
 	if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
-		LOG_WRN("could not insert into flash msgq");
+		LOG_INF("could not insert into flash msgq");
 	}
 	#endif
 	#if DT_ALIAS_EXISTS(lora)
@@ -230,6 +231,19 @@ void send_response(fjalar_t *fjalar, fjalar_message_t *msg, enum com_channels ch
 	#endif
 }
 
+void store_message(fjalar_t *fjalar, fjalar_message_t *msg) {
+	struct padded_buf pbuf;
+	int size = encode_fjalar_message(msg, pbuf.buf);
+	if (size < 0) {
+		LOG_ERR("encode_fjalar_message failed");
+		return;
+	}
+	LOG_DBG("storing message w/ size %d", size);
+	if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
+		LOG_INF("Could not store message");
+	}
+}
+
 void sampler_thread(fjalar_t *fjalar, void *p2, void *p3) {
 	while (true) {
 		k_msleep(1000);
@@ -241,10 +255,13 @@ void sampler_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		msg.data.data.telemetry_packet.az = fjalar->az;
 		msg.data.data.telemetry_packet.flight_state = fjalar->flight_state;
 		msg.data.data.telemetry_packet.velocity = fjalar->velocity;
-		msg.data.data.telemetry_packet.battery = 10.6;
-		msg.data.data.telemetry_packet.latitude = 39.342443;
-		msg.data.data.telemetry_packet.longitude = 39.342434;
-		msg.data.data.telemetry_packet.flash_address = 0;
+		msg.data.data.telemetry_packet.battery = fjalar->battery_voltage;
+		msg.data.data.telemetry_packet.latitude = fjalar->latitude;
+		msg.data.data.telemetry_packet.longitude = fjalar->longitude;
+		msg.data.data.telemetry_packet.flash_address = fjalar->flash_address;
+		// msg.data.data.telemetry_packet.pyro1 = 0;
+		// msg.data.data.telemetry_packet.pyro2 = 0;
+		// msg.data.data.telemetry_packet.pyro3 = 0;
 		send_message(fjalar, &msg, MSG_PRIO_HIGH);
 	}
 }
@@ -259,28 +276,23 @@ void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 	const uint8_t flash_reset_value = 0xff;
 	fjalar->flash_address = 0;
 	fjalar->flash_size = DT_PROP(DT_ALIAS(data_flash), size) / 8;
-	int chunk_size = 500;
+	int chunk_size = 1024;
 	int num_cleared_values = 0;
 	int chunk_start = 0;
 	int ret;
 	uint8_t buf[chunk_size];
-	// LOG_DBG("Erasing flash");
-	// k_msleep(100);
-	// flash_erase(flash_dev, 0, fjalar->flash_size);
-	// LOG_DBG("Erasing done");
 	k_mutex_lock(&flash_mutex, K_FOREVER);
 	while (true) {
 		chunk_size = MIN(chunk_size, fjalar->flash_size - fjalar->flash_address);
 		if (chunk_size < 1) {
 			goto end;
 		}
-		// LOG_DBG("reading chunk %d", fjalar->flash_address);
 		ret = flash_read(flash_dev, fjalar->flash_address, buf, chunk_size);
 		if (ret != 0) {
 			LOG_ERR("Flash startup read fail");
 			return;
 		}
-		k_msleep(1);
+		k_usleep(10);
 		chunk_start = fjalar->flash_address;
 		fjalar->flash_address = fjalar->flash_address + chunk_size;
 		for (int i = 0; i < chunk_size; i++) {
@@ -309,6 +321,7 @@ void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 			int size = get_encoded_message_length(pbuf.buf);
 			k_mutex_lock(&flash_mutex, K_FOREVER);
 			if (fjalar->flash_address + size >= fjalar->flash_size) {
+				k_mutex_unlock(&flash_mutex);
 				continue;
 			}
 			LOG_INF("wrote to flash address %d", fjalar->flash_address);
@@ -328,13 +341,23 @@ void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 
 #if DT_ALIAS_EXISTS(lora)
 int lora_configure(const struct device *dev, bool transmit) {
-    // struct lora_modem_config config;
+	static uint8_t current_mode = -1;
+	if (current_mode == transmit) {
+		LOG_DBG("Mode already configured");
+		return 0;
+	}
     struct lora_modem_config config = PROTOCOL_ZEPHYR_LORA_CONFIG;
     config.tx = transmit;
-	config.tx_power = 20;
+	config.tx_power = 10;
     int ret = lora_config(dev, &config);
 	if (ret < 0) {
 		LOG_ERR("Could not configure lora %d", ret);
+		return ret;
+	}
+	if (transmit) {
+		LOG_DBG("LoRa configured to tx");
+	} else {
+		LOG_DBG("LoRa configured to rx");
 	}
 	return ret;
 }
@@ -409,6 +432,8 @@ void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
             ret = lora_send(lora_dev, pbuf.buf, size);
 			if (ret) {
 				LOG_ERR("Could not send LoRa message");
+			} else {
+				LOG_DBG("Sent lora packet with size %d", size);
 			}
         }
     }

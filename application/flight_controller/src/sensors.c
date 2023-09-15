@@ -2,11 +2,13 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/drivers/adc.h>
 
 #include <minmea.h>
 
 #include "fjalar.h"
 #include "sensors.h"
+#include "communication.h"
 
 LOG_MODULE_REGISTER(sensors, CONFIG_APP_SENSORS_LOG_LEVEL);
 
@@ -69,7 +71,7 @@ void init_sensors(fjalar_t *fjalar) {
 	);
 	k_thread_name_set(imu_thread_id, "imu");
 
-	#if DT_ALIAS_EXISTS(bat_adc)
+	#if DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
 	vbat_thread_id = k_thread_create(
 		&vbat_thread_data,
 		vbat_thread_stack,
@@ -78,7 +80,7 @@ void init_sensors(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		VBAT_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
-	k_thread_name_set(vbat_thread_id, "bat adc");
+	k_thread_name_set(vbat_thread_id, "bat_adc");
 	#endif
 
 	#if DT_ALIAS_EXISTS(gps_uart)
@@ -106,6 +108,7 @@ void imu_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		ret = sensor_sample_fetch(imu_dev);
 		if (ret != 0) {
 			LOG_ERR("Could not fetch imu sample");
+			continue;
 		}
 
 		struct sensor_value ax;
@@ -126,6 +129,7 @@ void imu_thread(fjalar_t *fjalar, void *p2, void *p3) {
 
 		if (ret != 0) {
 			LOG_ERR("Could get imu values");
+			continue;
 		}
 
 		LOG_DBG("read imu: %f %f %f %f %f %f",
@@ -133,7 +137,7 @@ void imu_thread(fjalar_t *fjalar, void *p2, void *p3) {
 			sensor_value_to_float(&gx), sensor_value_to_float(&gy), sensor_value_to_float(&gz)
 		);
 
-		struct imu_queue_entry msg = {
+		struct imu_queue_entry q_entry = {
 			.t = k_uptime_get_32(),
 			.ax = sensor_value_to_float(&ax),
 			.ay = sensor_value_to_float(&ay),
@@ -142,10 +146,23 @@ void imu_thread(fjalar_t *fjalar, void *p2, void *p3) {
 			.gy = sensor_value_to_float(&gy),
 			.gz = sensor_value_to_float(&gz)
 		};
-		ret = k_msgq_put(&imu_msgq, &msg, K_NO_WAIT);
+		ret = k_msgq_put(&imu_msgq, &q_entry, K_NO_WAIT);
 		if (ret != 0) {
 			LOG_ERR("Could not write to imu msgq");
+			continue;
 		}
+
+		fjalar_message_t msg;
+		msg.time = k_uptime_get_32();
+		msg.has_data = true;
+		msg.data.which_data = FJALAR_DATA_IMU_READING_TAG;
+		msg.data.data.imu_reading.ax = sensor_value_to_float(&ax);
+		msg.data.data.imu_reading.ay = sensor_value_to_float(&ay);
+		msg.data.data.imu_reading.az = sensor_value_to_float(&az);
+		msg.data.data.imu_reading.gx = sensor_value_to_float(&gx);
+		msg.data.data.imu_reading.gy = sensor_value_to_float(&gy);
+		msg.data.data.imu_reading.gz = sensor_value_to_float(&gz);
+		send_message(fjalar, &msg, MSG_PRIO_LOW);
 	}
 }
 
@@ -169,31 +186,79 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		ret = sensor_sample_fetch(baro_dev);
 		if (ret != 0) {
 			LOG_ERR("Could not fetch barometer sample");
+			continue;
 		}
 		struct sensor_value pressure;
 		ret = sensor_channel_get(baro_dev, SENSOR_CHAN_PRESS, &pressure);
 		if (ret != 0) {
 			LOG_ERR("Could not get barometer pressure");
+			continue;
 		}
 		LOG_DBG("read pressure: %f", sensor_value_to_float(&pressure));
-		struct pressure_queue_entry msg;
-		msg.t = k_uptime_get_32();
-		msg.pressure = sensor_value_to_float(&pressure);
-		ret = k_msgq_put(&pressure_msgq, &msg, K_NO_WAIT);
+		struct pressure_queue_entry q_entry;
+		q_entry.t = k_uptime_get_32();
+		q_entry.pressure = sensor_value_to_float(&pressure);
+		ret = k_msgq_put(&pressure_msgq, &q_entry, K_NO_WAIT);
 		if (ret != 0) {
 			LOG_ERR("Could not write to pressure msgq");
+			// continue; not necessary
 		}
+		fjalar_message_t msg;
+		msg.time = k_uptime_get_32();
+		msg.has_data = true;
+		msg.data.which_data = FJALAR_DATA_PRESSURE_READING_TAG;
+		msg.data.data.pressure_reading.pressure = sensor_value_to_float(&pressure);;
+		send_message(fjalar, &msg, MSG_PRIO_LOW);
 	}
 }
 
 #if DT_NODE_EXISTS(DT_ALIAS(gps_uart))
-void handle_nmea(char *buf, int index) {
+void handle_nmea(fjalar_t *fjalar, char *buf, int len) {
+	LOG_DBG("Handling nmea message");
+	switch (minmea_sentence_id(buf, true)) {
+		case MINMEA_INVALID:
+			LOG_ERR("got invalid nmea message \"%.*s\"", len, buf);
+			break;
+		case MINMEA_UNKNOWN:
+			LOG_INF("got unknown nmea message (quectel probably) \"%.*s\"", len, buf);
+			break;
 
+		case MINMEA_SENTENCE_GSA:
+			LOG_INF("got GSA nmea message");
+			struct minmea_sentence_gsa gsa;
+			minmea_parse_gsa(&gsa, buf);
+			break;
+		case MINMEA_SENTENCE_GSV:
+			LOG_INF("got GSV nmea message");
+			struct minmea_sentence_gsv gsv;
+			minmea_parse_gsv(&gsv, buf);
+			break;
+
+		case MINMEA_SENTENCE_GGA:
+			LOG_INF("got GGA nmea message");
+			struct minmea_sentence_gga gga;
+			minmea_parse_gga(&gga, buf);
+			fjalar->longitude = minmea_tocoord(&gga.longitude);
+			fjalar->latitude = minmea_tocoord(&gga.latitude);
+			break;
+
+		case MINMEA_SENTENCE_RMC:
+			LOG_INF("got RMC nmea message");
+			struct minmea_sentence_rmc rmc;
+			minmea_parse_rmc(&rmc, buf);
+			fjalar->longitude = minmea_tocoord(&rmc.longitude);
+			fjalar->latitude = minmea_tocoord(&rmc.latitude);
+			break;
+
+		default:
+			LOG_INF("got unhandled nmea message \"%.*s\"", len, buf);
+			break;
+	}
 }
 
 void gps_uart_cb(const struct device *dev, void *user_data) {
-	uint8_t buf[256];
-	int len = 0;
+	static uint8_t nmea_buf[255];
+	static int nmea_index = 0;
 
 	if (!uart_irq_update(dev)) {
 		return;
@@ -203,9 +268,34 @@ void gps_uart_cb(const struct device *dev, void *user_data) {
 		return;
 	}
 
-	/* read until FIFO empty */
-	len = uart_fifo_read(dev, buf, sizeof(buf));
-	// printk("%.*s", len, buf);
+	while (true) {
+		uint8_t fifo_buf[255];
+		int fifo_len = uart_fifo_read(dev, fifo_buf, sizeof(fifo_buf));
+		if (fifo_len <= 0) {
+			break;
+		}
+
+		for (int i = 0; i < fifo_len; i++) {
+			char byte = fifo_buf[i];
+			if (byte == '$') {
+				nmea_index = 0;
+			}
+			if (byte == '\n' || byte == '\r') {
+				if (nmea_index != 0) {
+					nmea_buf[nmea_index] = '\0';
+					handle_nmea(&fjalar_god, nmea_buf, nmea_index); // TODO: don't use fjalar god
+				}
+				nmea_index = 0;
+				continue;
+			}
+			if (nmea_index < sizeof(nmea_buf) - 1) {
+				nmea_buf[nmea_index] = byte;
+				nmea_index++;
+				continue;
+			}
+			continue;
+		}
+	}
 }
 
 void gps_thread(fjalar_t *fjalar, void *p2, void *p3) {
@@ -223,45 +313,77 @@ void gps_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		.stop_bits = UART_CFG_STOP_BITS_1
 	};
 	ret = uart_configure(gps_dev, &uart_config);
-	// uart_irq_callback_set(gps_dev, gps_uart_cb);
-	// uart_irq_rx_enable(gps_dev);
+	uart_irq_callback_set(gps_dev, gps_uart_cb);
+	uart_irq_rx_enable(gps_dev);
 
-	const char pulse_msg[] = "$PMTK285,2,100*3E\r\n";
+	const char pulse_msg[] = "$PMTK285,2,100*3E\r\n"; // blink
 	for (int i = 0; i < strlen(pulse_msg); i++) {
 		uart_poll_out(gps_dev, pulse_msg[i]);
 	}
 
-	const char mode_msg[] = "$PMTK886,3*2B\r\n"; //balloon mode
+	const char mode_msg[] = "$PMTK886,3*2B\r\n"; // balloon mode
 	for (int i = 0; i < strlen(mode_msg); i++) {
 		uart_poll_out(gps_dev, mode_msg[i]);
-	}
-
-	char buf[MINMEA_MAX_SENTENCE_LENGTH];
-	int buf_index = 0;
-	while (true) {
-		char byte;
-		int ret;
-		ret = uart_poll_in(gps_dev, &byte);
-		if (ret == 0) {
-			if (byte == '$') {
-				buf_index = 0;
-			}
-			if (buf_index < sizeof(buf)) {
-				buf[buf_index] = byte;
-				buf_index++;
-			}
-			if (byte == '\n') {
-				handle_nmea(buf, buf_index);
-			}
-			continue;
-		}
-		k_msleep(1);
 	}
 }
 #endif
 
-#if DT_ALIAS_EXISTS(bat_adc)
+//WTF IS THIS I JUST WANT TO READ AN ADC CHANNEL
+#if DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
 void vbat_thread(fjalar_t *fjalar, void *p2, void *p3) {
+	#define DT_SPEC_AND_COMMA(node_id, prop, idx) \
+	ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
+	static const struct adc_dt_spec adc_channels[] = {
+		DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels,
+					DT_SPEC_AND_COMMA)
+	};
+	int err;
 
+	for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++) {
+		if (!device_is_ready(adc_channels[i].dev)) {
+			LOG_ERR("ADC controller device %s not ready\n", adc_channels[i].dev->name);
+			return;
+		}
+		err = adc_channel_setup_dt(&adc_channels[i]);
+		if (err < 0) {
+			LOG_ERR("Could not setup channel #%d (%d)\n", i, err);
+			return;
+		}
+	}
+
+	while (true) {
+		k_msleep(100);
+		uint16_t sample;
+		struct adc_sequence sequence;
+		struct adc_sequence_options options;
+		options.interval_us = 0;
+		options.extra_samplings = 0;
+		options.callback = NULL;
+		sequence.buffer = &sample;
+		sequence.buffer_size = sizeof(sample);
+		sequence.options = &options;
+		err = adc_sequence_init_dt(&adc_channels[0], &sequence);
+		if (err) {
+			LOG_ERR("Could not init adc channel");
+			continue;
+		}
+		err = adc_read(adc_channels[0].dev, &sequence);
+		if (err) {
+			LOG_ERR("Could not read adc channel");
+			continue;
+		}
+		uint32_t mv = sample;
+		float volt;
+		const float numerator = DT_PROP(DT_PATH(zephyr_user), battery_numerator);
+		const float denominator = DT_PROP(DT_PATH(zephyr_user), battery_denominator);
+		err = adc_raw_to_millivolts_dt(&adc_channels[0],
+						       &mv);
+		if (err) {
+			LOG_ERR("Could not convert adc raw");
+		}
+		volt = (mv / 1000.0) * numerator / denominator;
+		fjalar->battery_voltage = volt;
+		LOG_DBG("battery voltage raw: %f scaled: %f", mv / 1000.0, volt);
+	}
 }
 #endif

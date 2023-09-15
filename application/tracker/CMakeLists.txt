@@ -11,11 +11,12 @@ target_sources(app PRIVATE
     src/main.c
     src/display.c
     src/communication.c
+    src/sensors.c
 )
 
 add_subdirectory(../common ../build/common)
 target_link_libraries(app PRIVATE protocol)
-
+target_link_libraries(app PRIVATE minmea)
 
 set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated/)
 # generate_cfb_font_for_target(app "fonts/Big Apple 3PM.ttf" "${gen_dir}/cfb_custom_font.h" 28 32)

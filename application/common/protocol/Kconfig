@@ -1,4 +1,4 @@
 config PROTOCOL_LOG_LEVEL
-    int "Application filter log level"
+    int "protocol filter log level"
     default 2
     depends on LOG

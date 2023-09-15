@@ -1,0 +1,4 @@
+config MINMEA_LOG_LEVEL
+    int "minmea log level"
+    default 2
+    depends on LOG

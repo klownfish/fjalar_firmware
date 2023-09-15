@@ -52,7 +52,7 @@ void handle_set_sudo(set_sudo_t *msg, fjalar_t *fjalar, enum com_channels channe
 
 void handle_ready_up(ready_up_t *msg, fjalar_t *fjalar, enum com_channels channel) {
     bool succesful;
-    if (fjalar->flight_state == STATE_IDLE) {
+    if (fjalar->sudo == true || fjalar->flight_state == STATE_IDLE) {
         fjalar->flight_state = STATE_LAUNCHPAD;
         succesful = true;
     } else {
@@ -62,7 +62,7 @@ void handle_ready_up(ready_up_t *msg, fjalar_t *fjalar, enum com_channels channe
 
 void handle_enter_idle(enter_idle_t *msg, fjalar_t *fjalar, enum com_channels channel) {
     bool succesful;
-    if (fjalar->sudo == true) {
+    if (fjalar->sudo == true || fjalar->flight_state == STATE_IDLE) {
         fjalar->flight_state = STATE_IDLE;
         succesful = true;
     } else {

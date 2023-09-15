@@ -19,6 +19,11 @@ config APP_COM_LOG_LEVEL
     default 2
     depends on LOG
 
+config APP_SENSORS_LOG_LEVEL
+    int "app sensors log level"
+    default 2
+    depends on LOG
+
 config DELAYED_START
     bool "delay the start"
     default n

@@ -6,6 +6,7 @@
 
 #include "tracker.h"
 #include "display.h"
+#include "sensors.h"
 
 LOG_MODULE_REGISTER(app_display, CONFIG_APP_DISPLAY_LOG_LEVEL);
 
@@ -67,9 +68,9 @@ void drawing_thread(tracker_t *tracker, void *p2, void *p3) {
         if (last_frame != tracker->current_frame || ret) {
             k_msleep(500); // for the double click lol
             if (last_frame != tracker->current_frame || ret) {
+                last_frame = tracker->current_frame;
                 draw_frame(tracker, tracker->current_frame);
                 k_msleep(500);
-                last_frame = tracker->current_frame;
             }
         }
         k_msleep(100);
@@ -117,6 +118,22 @@ void draw_frame(tracker_t *tracker, enum screen_frames frame) {
         case FRAME_TRACKING:
             len = snprintk(buf, sizeof(buf), "tracking");
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            len = snprintk(buf, sizeof(buf), "rocket");
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            len = snprintk(buf, sizeof(buf), "lat: %f°", tracker->telemetry.latitude);
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            len = snprintk(buf, sizeof(buf), "lon: %f°", tracker->telemetry.longitude);
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            len = snprintk(buf, sizeof(buf), "tracker");
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            len = snprintk(buf, sizeof(buf), "lat: %f°", tracker->latitude);
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            len = snprintk(buf, sizeof(buf), "lon: %f°", tracker->longitude);
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+
+            float distance = haversine_distance(tracker->telemetry.latitude, tracker->telemetry.longitude, tracker->latitude, tracker->longitude);
+            len = snprintk(buf, sizeof(buf), "distance: %fm", distance);
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             break;
         case FRAME_TELEMETRY:
             len = snprintk(buf, sizeof(buf), "alt: %fm", tracker->telemetry.altitude);
@@ -127,11 +144,11 @@ void draw_frame(tracker_t *tracker, enum screen_frames frame) {
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             len = snprintk(buf, sizeof(buf), "p1:%d p2:%d p3:%d", tracker->telemetry.pyro0_connected, tracker->telemetry.pyro1_connected, tracker->telemetry.pyro2_connected);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
-            len = snprintk(buf, sizeof(buf), "rssi: %fdBm", tracker->local_rssi);
+            len = snprintk(buf, sizeof(buf), "rssi: %ddBm", tracker->local_rssi);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             len = snprintk(buf, sizeof(buf), "state: %s", state_to_string(tracker->telemetry.flight_state));
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
-            len = snprintk(buf, sizeof(buf), "flash: %f%", tracker->telemetry.flash_address);
+            len = snprintk(buf, sizeof(buf), "flash: %f%%", tracker->telemetry.flash_address / (float) 0x8000000 * 100 * 8);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             len = snprintk(buf, sizeof(buf), "volt: %fV", tracker->telemetry.battery);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);

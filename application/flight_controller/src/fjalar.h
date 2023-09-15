@@ -36,6 +36,9 @@ typedef struct {
     bool sudo;
     uint32_t flash_address;
     uint32_t flash_size;
+    float battery_voltage;
+    float latitude;
+    float longitude;
 } fjalar_t;
 
 extern fjalar_t fjalar_god;

@@ -35,6 +35,13 @@ k_tid_t uart_thread_id;
 void uart_thread(tracker_t *tracker, void *p2, void *p3);
 #endif
 
+#if DT_ALIAS_EXISTS(commands_usb)
+K_THREAD_STACK_DEFINE(usb_thread_stack, USB_THREAD_STACK_SIZE);
+struct k_thread usb_thread_data;
+k_tid_t usb_thread_id;
+void usb_thread(tracker_t *tracker, void *p2, void *p3);
+#endif
+
 K_MSGQ_DEFINE(lora_msgq, sizeof(struct padded_buf), 10, 4);
 K_MSGQ_DEFINE(usb_msgq, sizeof(struct padded_buf), 10, 4);
 K_MSGQ_DEFINE(uart_msgq, sizeof(struct padded_buf), 10, 4);
@@ -49,6 +56,7 @@ void init_communication(tracker_t *tracker) {
 		tracker, NULL, NULL,
 		LORA_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(lora_thread_id, "lora");
     #endif
 
     #if DT_ALIAS_EXISTS(telemetry_uart)
@@ -60,10 +68,69 @@ void init_communication(tracker_t *tracker) {
 		tracker, NULL, NULL,
 		UART_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
+	k_thread_name_set(uart_thread_id, "uart");
+    #endif
+
+	#if DT_ALIAS_EXISTS(commands_usb)
+	usb_thread_id = k_thread_create(
+		&usb_thread_data,
+		usb_thread_stack,
+		K_THREAD_STACK_SIZEOF(usb_thread_stack),
+		(k_thread_entry_t) usb_thread,
+		tracker, NULL, NULL,
+		USB_THREAD_PRIORITY, 0, K_NO_WAIT
+	);
+	k_thread_name_set(usb_thread_id, "uart");
     #endif
 }
 
+void send_screen_command(tracker_t *tracker) {
+	struct fjalar_message msg;
+	switch (tracker->current_frame) {
+		case FRAME_INFO:
+			break;
+        case FRAME_TRACKING:
+            break;
+        case FRAME_TELEMETRY:
+            break;
+        case FRAME_PYRO1:
+            break;
+        case FRAME_PYRO2:
+            break;
+        case FRAME_PYRO3:
+            break;
+        case FRAME_GET_READY:
+			msg.has_data = true;
+			msg.data.which_data = FJALAR_DATA_READY_UP_TAG;
+			send_message(tracker, &msg);
+            break;
+
+        case FRAME_ENTER_IDLE:
+			msg.has_data = true;
+			msg.data.which_data = FJALAR_DATA_ENTER_IDLE_TAG;
+			send_message(tracker, &msg);
+            break;
+
+        case FRAME_ENTER_SUDO:
+            break;
+        case FRAME_MAX:
+            break;
+	}
+}
+
+void send_message(tracker_t *tracker, fjalar_message_t *msg) {
+	struct padded_buf pbuf;
+	int size = encode_fjalar_message(msg, pbuf.buf);
+	if (size < 0) {
+		LOG_ERR("encode_fjalar_message failed");
+		return;
+	}
+	LOG_DBG("sending message w/ size %d", size);
+	write_to_fc(tracker, pbuf.buf, size);
+}
+
 void handle_fjalar_message(tracker_t *tracker, struct fjalar_message *msg) {
+	LOG_DBG("handling message with ID %d", msg->data.which_data);
     switch (msg->data.which_data) {
         case FJALAR_DATA_TELEMETRY_PACKET_TAG:
             tracker->telemetry = msg->data.data.telemetry_packet;
@@ -72,26 +139,64 @@ void handle_fjalar_message(tracker_t *tracker, struct fjalar_message *msg) {
             tracker->pyros_enabled = msg->data.data.pyros_enabled;
             break;
         default:
+			LOG_DBG("Could not handle message with ID %d", msg->data.which_data);
     }
 }
 
-void send_to_gs(tracker_t *tracker, uint8_t *buf, int len) {
+
+
+void write_to_gs(tracker_t *tracker, uint8_t *buf, int len) {
+	struct padded_buf pbuf;
+	int ret;
+	memcpy(pbuf.buf, buf, len);
+	ret = k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT);
+	if (ret != 0) {
+		LOG_ERR("Could not write to usb_msgq (%d)", ret);
+	}
 }
 
-void send_to_fc(tracker_t *tracker, uint8_t *buf, int len) {
+void write_to_fc(tracker_t *tracker, uint8_t *buf, int len) {
+	struct padded_buf pbuf;
+	int ret;
+	memcpy(pbuf.buf, buf, len);
 
+	#if DT_ALIAS_EXISTS(telemetry_uart)
+	ret = k_msgq_put(&uart_msgq, &pbuf, K_NO_WAIT);
+	if (ret != 0) {
+		LOG_ERR("Could not write to uart_msgq (%d)", ret);
+	}
+	#endif
+
+	#if DT_ALIAS_EXISTS(telemetry_lora)
+	ret = k_msgq_put(&lora_msgq, &pbuf, K_NO_WAIT);
+	if (ret != 0) {
+		LOG_ERR("Could not write to lora_msgq (%d)", ret);
+	}
+	#endif
 }
 
 #if DT_ALIAS_EXISTS(telemetry_lora)
-int lora_configure(const struct device *dev, bool transmit) {
+int lora_configure(const struct device *dev, uint8_t transmit) {
     // struct lora_modem_config config;
+	static uint8_t current_mode = -1;
+	if (current_mode == transmit) {
+		LOG_DBG("Mode already configured");
+		return 0;
+	}
     struct lora_modem_config config = PROTOCOL_ZEPHYR_LORA_CONFIG;
     config.tx = transmit;
-	config.tx_power = 20;
+	config.tx_power = 10;
     int ret = lora_config(dev, &config);
 	if (ret < 0) {
 		LOG_ERR("Could not configure lora %d", ret);
+		return ret;
 	}
+	if (transmit) {
+		LOG_DBG("LoRa configured to tx");
+	} else {
+		LOG_DBG("LoRa configured to rx");
+	}
+	current_mode = transmit ? 1 : 0;
 	return ret;
 }
 
@@ -139,23 +244,24 @@ void lora_thread(tracker_t *tracker, void* p2, void* p3) {
 		} else {
 			LOG_DBG("LoRa rxing");
 		}
+
 		lora_recv_async(lora_dev, lora_cb);
-        LOG_DBG("HAHA YEESSSS");
-		k_poll(&events[1], 2, K_MSEC(10000)); //poll only rx first to not interrupt messages
+		// k_poll(&events[1], 1, K_MSEC(10000)); //poll only rx first to not interrupt messages
 		k_poll(events, 2, K_FOREVER);
 
 		ret = k_msgq_get(&lora_rx_msgq, &rx, K_NO_WAIT);
         if (ret == 0) {
 			events[1].state = K_POLL_STATE_NOT_READY;
-			LOG_INF("received LoRa");
+			LOG_INF("received LoRa packet. Size: %d rssi: %d snr: %d", rx.size, rx.rssi, rx.snr);
+			tracker->local_rssi = rx.rssi;
 			struct protocol_state ps;
 			reset_protocol_state(&ps);
             for (int i = 0; i < rx.size; i++) {
                 int got_msg = parse_fjalar_message(&ps, rx.buf[i], &msg);
-                if (got_msg == 1 && i == rx.size) {
+                if (got_msg == 1) {
                     LOG_INF("parsed message from lora");
                     handle_fjalar_message(tracker, &msg);
-                    send_to_gs(tracker, rx.buf, rx.size);
+                    write_to_gs(tracker, rx.buf, rx.size);
                 } else
                 if (got_msg == -1) {
                     LOG_ERR("Invalid message from lora");
@@ -166,7 +272,7 @@ void lora_thread(tracker_t *tracker, void* p2, void* p3) {
         ret = k_msgq_get(&lora_msgq, &pbuf, K_NO_WAIT);
         if (ret == 0) {
 			events[0].state = K_POLL_STATE_NOT_READY;
-			lora_recv_async(lora_dev, NULL);
+			lora_recv_async(lora_dev, NULL); // cancel reception
             ret = lora_configure(lora_dev, LORA_TRANSMIT);
 			if (ret) {
 				LOG_ERR("LORA tx configure failed");
@@ -200,7 +306,7 @@ void uart_thread(tracker_t *tracker, void* p2, void* p3) {
 		uint8_t byte;
 		ret = uart_poll_in(uart_dev, &byte);
 		if (ret == 0) {
-            LOG_DBG("received byte on telemetry_uart");
+            // LOG_DBG("received byte on telemetry_uart");
             if (rx_index < sizeof(rx_buf)) {
                 rx_buf[rx_index] = byte;
                 rx_index++;
@@ -210,7 +316,7 @@ void uart_thread(tracker_t *tracker, void* p2, void* p3) {
             if (got_msg == 1) {
                 LOG_INF("received message from telemetry_uart");
                 handle_fjalar_message(tracker, &msg);
-                send_to_gs(tracker, rx_buf, rx_index);
+                write_to_gs(tracker, rx_buf, rx_index);
                 rx_index = 0;
             } else
             if (got_msg == -1) {
@@ -238,6 +344,53 @@ void uart_thread(tracker_t *tracker, void* p2, void* p3) {
 
 #if DT_ALIAS_EXISTS(commands_usb)
 void usb_thread(tracker_t *tracker, void* p2, void* p3) {
+	const struct device *usb_dev = DEVICE_DT_GET(DT_ALIAS(commands_usb));
+    if (!device_is_ready(usb_dev)) {
+		LOG_ERR("telemetry uart not ready");
+		return;
+	}
+	struct protocol_state ps;
+	reset_protocol_state(&ps);
+    uint8_t rx_buf[PROTOCOL_BUFFER_LENGTH]; //TODO: please mangage lengths properly
+    uint8_t rx_index = 0;
+	while(1) {
+		// rx
+		int ret;
+		uint8_t byte;
+		ret = uart_poll_in(usb_dev, &byte);
+		if (ret == 0) {
+            // LOG_DBG("received byte on telemetry_uart");
+            if (rx_index < sizeof(rx_buf)) {
+                rx_buf[rx_index] = byte;
+                rx_index++;
+            }
+            fjalar_message_t msg;
+            int got_msg = parse_fjalar_message(&ps, byte, &msg);
+            if (got_msg == 1) {
+                LOG_INF("received message from commands_usb");
+                // handle_fjalar_message(tracker, &msg);
+                write_to_fc(tracker, rx_buf, rx_index);
+                rx_index = 0;
+            } else
+            if (got_msg == -1) {
+                rx_index = 0;
+            }
+			continue;
+		} else
+		if (ret != -1) {
+			LOG_ERR("USB read error");
+		}
 
+		// tx
+		struct padded_buf pbuf;
+		ret = k_msgq_get(&usb_msgq, &pbuf, K_NO_WAIT);
+		if (ret == 0) {
+			int size = get_encoded_message_length(pbuf.buf);
+			for (int i = 0; i < size; i++) {
+				uart_poll_out(usb_dev, pbuf.buf[i]);
+			}
+		}
+		k_msleep(1);
+	}
 }
 #endif

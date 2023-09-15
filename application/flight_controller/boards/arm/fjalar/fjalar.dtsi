@@ -120,7 +120,6 @@
 &adc1 {
 	pinctrl-0 = <&adc1_in15_pb0>;
 	pinctrl-names = "default";
-	status = "okay";
 };
 
 &timers2 {

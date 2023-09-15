@@ -10,6 +10,7 @@
 
 #include "tracker.h"
 #include "display.h"
+#include "sensors.h"
 #include "communication.h"
 
 LOG_MODULE_REGISTER(main, CONFIG_APP_MAIN_LOG_LEVEL);
@@ -22,11 +23,12 @@ void button_callback(const struct device *dev, struct gpio_callback *cb, uint32_
     int next_frame = (tracker_god.current_frame + 1) % (FRAME_MAX);
     tracker_god.current_frame = next_frame;
 
-    if (k_uptime_get_32() - last_press < 500) {
+    if (k_uptime_get_32() - last_press < 200) {
         tracker_god.current_frame = next_frame;
         int next_frame = (tracker_god.current_frame - 2) % (FRAME_MAX);
         tracker_god.current_frame = next_frame;
         last_press = 0;
+        send_screen_command(&tracker_god); // TODO: I don't like tracker_god
     } else  {
         last_press = k_uptime_get_32();
     }
@@ -43,6 +45,7 @@ int main(void)
 	#endif
     init_display(&tracker_god);
     init_communication(&tracker_god);
+    init_sensors(&tracker_god);
 
     int ret;
     const struct gpio_dt_spec gpio_led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
