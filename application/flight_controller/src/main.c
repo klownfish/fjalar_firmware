@@ -30,6 +30,7 @@ int main(void) {
 		k_msleep(1000);
 	}
 	#endif
+	fjalar_god.sudo = false;
 	printk("Started\n");
 	init_sensors(&fjalar_god);
 	init_flight_state(&fjalar_god);

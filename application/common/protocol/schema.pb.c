@@ -42,10 +42,7 @@ PB_BIND(READY_UP, ready_up_t, AUTO)
 PB_BIND(ENTER_IDLE, enter_idle_t, AUTO)
 
 
-PB_BIND(PYROS_ENABLED, pyros_enabled_t, AUTO)
-
-
-PB_BIND(ENABLE_PYROS, enable_pyros_t, AUTO)
+PB_BIND(TRIGGER_PYRO, trigger_pyro_t, AUTO)
 
 
 PB_BIND(FJALAR_DATA, fjalar_data_t, AUTO)

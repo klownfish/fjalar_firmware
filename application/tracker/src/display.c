@@ -10,7 +10,7 @@
 
 LOG_MODULE_REGISTER(app_display, CONFIG_APP_DISPLAY_LOG_LEVEL);
 
-#define DRAWING_THREAD_PRIORITY 7
+#define DRAWING_THREAD_PRIORITY 6
 #define DRAWING_THREAD_STACK_SIZE 1024
 
 K_THREAD_STACK_DEFINE(drawing_thread_stack, DRAWING_THREAD_STACK_SIZE);
@@ -34,6 +34,9 @@ void init_display(tracker_t *tracker) {
 	);
 }
 
+void next_frame(tracker_t *tracker) {
+    tracker->current_frame = (tracker->current_frame + 1) % FRAME_MAX;
+}
 
 void drawing_thread(tracker_t *tracker, void *p2, void *p3) {
 
@@ -66,12 +69,10 @@ void drawing_thread(tracker_t *tracker, void *p2, void *p3) {
     while (true) {
         ret = gpio_pin_get_dt(&touch_sw);
         if (last_frame != tracker->current_frame || ret) {
-            k_msleep(500); // for the double click lol
-            if (last_frame != tracker->current_frame || ret) {
-                last_frame = tracker->current_frame;
-                draw_frame(tracker, tracker->current_frame);
-                k_msleep(500);
-            }
+            enum screen_frames frame = tracker->current_frame;
+            draw_frame(tracker, frame);
+            last_frame = frame;
+            tracker->current_frame = last_frame;
         }
         k_msleep(100);
     }
@@ -142,7 +143,7 @@ void draw_frame(tracker_t *tracker, enum screen_frames frame) {
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             len = snprintk(buf, sizeof(buf), "az: %fm/s2", tracker->telemetry.az);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
-            len = snprintk(buf, sizeof(buf), "p1:%d p2:%d p3:%d", tracker->telemetry.pyro0_connected, tracker->telemetry.pyro1_connected, tracker->telemetry.pyro2_connected);
+            len = snprintk(buf, sizeof(buf), "p1:%d p2:%d p3:%d", tracker->telemetry.pyro1_connected, tracker->telemetry.pyro2_connected, tracker->telemetry.pyro3_connected);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             len = snprintk(buf, sizeof(buf), "rssi: %ddBm", tracker->local_rssi);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
@@ -157,21 +158,21 @@ void draw_frame(tracker_t *tracker, enum screen_frames frame) {
             i = 3;
             len = snprintk(buf, sizeof(buf), "PYRO 1");
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
-            len = snprintk(buf, sizeof(buf), "state: %d", tracker->pyros_enabled.pyro0);
+            len = snprintk(buf, sizeof(buf), "connected: %d", tracker->telemetry.pyro1_connected);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             break;
         case FRAME_PYRO2:
             i = 3;
             len = snprintk(buf, sizeof(buf), "PYRO 2");
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
-            len = snprintk(buf, sizeof(buf), "state: %d", tracker->pyros_enabled.pyro1);
+            len = snprintk(buf, sizeof(buf), "connected: %d", tracker->telemetry.pyro2_connected);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             break;
         case FRAME_PYRO3:
             i = 3;
             len = snprintk(buf, sizeof(buf), "PYRO 3");
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
-            len = snprintk(buf, sizeof(buf), "state: %d", tracker->pyros_enabled.pyro2);
+            len = snprintk(buf, sizeof(buf), "connected: %d", tracker->telemetry.pyro3_connected);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             break;
         case FRAME_GET_READY:
@@ -192,7 +193,14 @@ void draw_frame(tracker_t *tracker, enum screen_frames frame) {
             i = 3;
             len = snprintk(buf, sizeof(buf), "SUDO MODE?");
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
-            len = snprintk(buf, sizeof(buf), "Sudo: %d", 1);
+            len = snprintk(buf, sizeof(buf), "Sudo: %d", tracker->telemetry.sudo);
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            break;
+        case FRAME_CLEAR_FLASH:
+            i = 3;
+            len = snprintk(buf, sizeof(buf), "CLEAR FLASH?");
+            cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
+            len = snprintk(buf, sizeof(buf), "flash address: %d", tracker->telemetry.flash_address);
             cfb_draw_text(display_dev, buf, x_offset, i++ * font_height);
             break;
         case FRAME_MAX:

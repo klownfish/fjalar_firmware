@@ -57,12 +57,12 @@ k_tid_t usb_thread_id;
 void usb_thread(fjalar_t *fjalar, void *p2, void *p3);
 #endif
 
+K_MUTEX_DEFINE(flash_mutex);
 #if DT_ALIAS_EXISTS(data_flash)
 K_THREAD_STACK_DEFINE(flash_thread_stack, FLASH_THREAD_STACK_SIZE);
 struct k_thread flash_thread_data;
 k_tid_t flash_thread_id;
 void flash_thread(fjalar_t *fjalar, void *p2, void *p3);
-K_MUTEX_DEFINE(flash_mutex);
 #endif
 
 struct padded_buf {
@@ -209,26 +209,39 @@ void send_response(fjalar_t *fjalar, fjalar_message_t *msg, enum com_channels ch
 		LOG_ERR("encode_fjalar_message failed");
 		return;
 	}
-	#if DT_ALIAS_EXISTS(data_flash)
-	if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
-		LOG_INF("could not insert into flash msgq");
+	switch (channel) {
+		case COM_CHAN_FLASH:
+			#if DT_ALIAS_EXISTS(data_flash)
+			if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
+				LOG_INF("could not insert into flash msgq");
+			}
+			#endif
+			break;
+
+		case COM_CHAN_LORA:
+			#if DT_ALIAS_EXISTS(lora)
+			if (k_msgq_put(&lora_msgq, &pbuf, K_NO_WAIT)) {
+				LOG_ERR("could not insert into lora msgq");
+			}
+			#endif
+			break;
+
+		case COM_CHAN_EXT_UART:
+			#if DT_ALIAS_EXISTS(external_uart)
+			if (k_msgq_put(&uart_msgq, &pbuf, K_NO_WAIT)) {
+				LOG_WRN("could not insert into uart msgq");
+			}
+			#endif
+			break;
+
+		case COM_CHAN_USB:
+			#if DT_ALIAS_EXISTS(data_usb)
+			if (k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT)) {
+				LOG_INF("could not insert data usb msgq");
+			}
+			#endif
+			break;
 	}
-	#endif
-	#if DT_ALIAS_EXISTS(lora)
-	if (k_msgq_put(&lora_msgq, &pbuf, K_NO_WAIT)) {
-		LOG_ERR("could not insert into lora msgq");
-	}
-	#endif
-	#if DT_ALIAS_EXISTS(external_uart)
-	if (k_msgq_put(&uart_msgq, &pbuf, K_NO_WAIT)) {
-		LOG_WRN("could not insert into uart msgq");
-	}
-	#endif
-	#if DT_ALIAS_EXISTS(data_usb)
-	if (k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT)) {
-		LOG_INF("could not insert data usb msgq");
-	}
-	#endif
 }
 
 void store_message(fjalar_t *fjalar, fjalar_message_t *msg) {
@@ -259,17 +272,39 @@ void sampler_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		msg.data.data.telemetry_packet.latitude = fjalar->latitude;
 		msg.data.data.telemetry_packet.longitude = fjalar->longitude;
 		msg.data.data.telemetry_packet.flash_address = fjalar->flash_address;
-		// msg.data.data.telemetry_packet.pyro1 = 0;
-		// msg.data.data.telemetry_packet.pyro2 = 0;
-		// msg.data.data.telemetry_packet.pyro3 = 0;
+		msg.data.data.telemetry_packet.pyro1_connected = fjalar->pyro1_sense;
+		msg.data.data.telemetry_packet.pyro2_connected = fjalar->pyro2_sense;
+		msg.data.data.telemetry_packet.pyro3_connected = fjalar->pyro3_sense;
+		msg.data.data.telemetry_packet.sudo = fjalar->sudo;
 		send_message(fjalar, &msg, MSG_PRIO_HIGH);
 	}
+}
+
+void read_flash(fjalar_t *fjalar, uint8_t *buf, uint32_t index, uint8_t len) {
+	#if DT_ALIAS_EXISTS(data_flash)
+	LOG_DBG("Reading flash");
+	const struct device *flash_dev = DEVICE_DT_GET(DT_ALIAS(data_flash));
+	k_mutex_lock(&flash_mutex, K_FOREVER);
+	flash_read(flash_dev, index, buf, len);
+	k_mutex_unlock(&flash_mutex);
+	#endif
+}
+
+void clear_flash(fjalar_t *fjalar) {
+	LOG_WRN("Clearing flash");
+	#if DT_ALIAS_EXISTS(data_flash)
+	const struct device *flash_dev = DEVICE_DT_GET(DT_ALIAS(data_flash));
+	k_mutex_lock(&flash_mutex, K_FOREVER);
+	flash_erase(flash_dev, 0, fjalar->flash_size);
+	fjalar->flash_address = 0;
+	k_mutex_unlock(&flash_mutex);
+	#endif
 }
 
 #if DT_ALIAS_EXISTS(data_flash)
 void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 	const struct device *flash_dev = DEVICE_DT_GET(DT_ALIAS(data_flash));
-    if (!device_is_ready(flash_dev)) {
+	if (!device_is_ready(flash_dev)) {
 		LOG_ERR("Flash not ready");
 		return;
 	}
@@ -317,7 +352,7 @@ void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		int ret;
 		struct padded_buf pbuf;
 		ret = k_msgq_get(&flash_msgq, &pbuf, K_FOREVER);
-        if (ret == 0) {
+		if (ret == 0) {
 			int size = get_encoded_message_length(pbuf.buf);
 			k_mutex_lock(&flash_mutex, K_FOREVER);
 			if (fjalar->flash_address + size >= fjalar->flash_size) {
@@ -332,9 +367,9 @@ void flash_thread(fjalar_t *fjalar, void *p2, void *p3) {
 				fjalar->flash_address += size;
 			}
 			k_mutex_unlock(&flash_mutex);
-        } else {
-            LOG_ERR("flash msgq error");
-        }
+		} else {
+			LOG_ERR("flash msgq error");
+		}
 	}
 }
 #endif
@@ -346,10 +381,10 @@ int lora_configure(const struct device *dev, bool transmit) {
 		LOG_DBG("Mode already configured");
 		return 0;
 	}
-    struct lora_modem_config config = PROTOCOL_ZEPHYR_LORA_CONFIG;
-    config.tx = transmit;
+	struct lora_modem_config config = PROTOCOL_ZEPHYR_LORA_CONFIG;
+	config.tx = transmit;
 	config.tx_power = 10;
-    int ret = lora_config(dev, &config);
+	int ret = lora_config(dev, &config);
 	if (ret < 0) {
 		LOG_ERR("Could not configure lora %d", ret);
 		return ret;
@@ -359,6 +394,7 @@ int lora_configure(const struct device *dev, bool transmit) {
 	} else {
 		LOG_DBG("LoRa configured to rx");
 	}
+	current_mode = transmit;
 	return ret;
 }
 
@@ -372,7 +408,7 @@ struct lora_rx {
 K_MSGQ_DEFINE(lora_rx_msgq, sizeof(struct lora_rx), 5, 4);
 
 void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi, int8_t snr) {
-    struct lora_rx rx;
+	struct lora_rx rx;
 	rx.size = MIN(size, PROTOCOL_BUFFER_LENGTH);
 	memcpy(rx.buf, buf, rx.size);
 	rx.rssi = rssi;
@@ -381,15 +417,15 @@ void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi
 }
 
 void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
-    const struct device *lora_dev = DEVICE_DT_GET(DT_ALIAS(lora));
-    if (!device_is_ready(lora_dev)) {
-        LOG_ERR("LoRa is not ready");
+	const struct device *lora_dev = DEVICE_DT_GET(DT_ALIAS(lora));
+	if (!device_is_ready(lora_dev)) {
+		LOG_ERR("LoRa is not ready");
 		return;
-    }
+	}
 	struct lora_rx rx;
-    while (true) {
-        int ret;
-        struct padded_buf pbuf;
+	while (true) {
+		int ret;
+		struct padded_buf pbuf;
 		struct k_poll_event events[2] = {
 			K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
 											K_POLL_MODE_NOTIFY_ONLY,
@@ -399,7 +435,7 @@ void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
 											&lora_rx_msgq),
 		};
 
-        ret = lora_configure(lora_dev, LORA_RECEIVE);
+		ret = lora_configure(lora_dev, LORA_RECEIVE);
 		if (ret) {
 			LOG_ERR("LoRa rx configure failed");
 		} else {
@@ -410,33 +446,33 @@ void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
 		k_poll(events, 2, K_FOREVER);
 
 		ret = k_msgq_get(&lora_rx_msgq, &rx, K_NO_WAIT);
-        if (ret == 0) {
+		if (ret == 0) {
 			events[1].state = K_POLL_STATE_NOT_READY;
 			LOG_INF("received LoRa msg");
 			struct protocol_state ps;
 			reset_protocol_state(&ps);
 			handle_fjalar_buf(&ps, fjalar, rx.buf, rx.size, COM_CHAN_LORA);
-        }
+		}
 
-        ret = k_msgq_get(&lora_msgq, &pbuf, K_NO_WAIT);
-        if (ret == 0) {
+		ret = k_msgq_get(&lora_msgq, &pbuf, K_NO_WAIT);
+		if (ret == 0) {
 			events[0].state = K_POLL_STATE_NOT_READY;
 			lora_recv_async(lora_dev, NULL);
-            ret = lora_configure(lora_dev, LORA_TRANSMIT);
+			ret = lora_configure(lora_dev, LORA_TRANSMIT);
 			if (ret) {
 				LOG_ERR("LORA tx configure failed");
 			}else {
 				LOG_DBG("LoRa txing");
 			}
-            int size = get_encoded_message_length(pbuf.buf);
-            ret = lora_send(lora_dev, pbuf.buf, size);
+			int size = get_encoded_message_length(pbuf.buf);
+			ret = lora_send(lora_dev, pbuf.buf, size);
 			if (ret) {
 				LOG_ERR("Could not send LoRa message");
 			} else {
 				LOG_DBG("Sent lora packet with size %d", size);
 			}
-        }
-    }
+		}
+	}
 }
 #endif
 
@@ -472,7 +508,7 @@ void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
 #if DT_ALIAS_EXISTS(external_uart)
 void uart_thread(fjalar_t *fjalar, void *p2, void *p3) {
 	const struct device *uart_dev = DEVICE_DT_GET(DT_ALIAS(external_uart));
-    if (!device_is_ready(uart_dev)) {
+	if (!device_is_ready(uart_dev)) {
 		LOG_ERR("External uart not ready");
 		return;
 	}
@@ -508,7 +544,7 @@ void uart_thread(fjalar_t *fjalar, void *p2, void *p3) {
 #if DT_ALIAS_EXISTS(data_usb)
 void usb_thread(fjalar_t *fjalar, void *p2, void *p3) {
 	const struct device *usb_dev = DEVICE_DT_GET(DT_ALIAS(data_usb));
-    if (!device_is_ready(usb_dev)) {
+	if (!device_is_ready(usb_dev)) {
 		LOG_ERR("data usb not ready");
 		return;
 	}

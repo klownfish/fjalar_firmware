@@ -220,22 +220,22 @@ void handle_nmea(fjalar_t *fjalar, char *buf, int len) {
 			LOG_ERR("got invalid nmea message \"%.*s\"", len, buf);
 			break;
 		case MINMEA_UNKNOWN:
-			LOG_INF("got unknown nmea message (quectel probably) \"%.*s\"", len, buf);
+			LOG_DBG("got unknown nmea message (quectel probably) \"%.*s\"", len, buf);
 			break;
 
 		case MINMEA_SENTENCE_GSA:
-			LOG_INF("got GSA nmea message");
+			LOG_DBG("got GSA nmea message");
 			struct minmea_sentence_gsa gsa;
 			minmea_parse_gsa(&gsa, buf);
 			break;
 		case MINMEA_SENTENCE_GSV:
-			LOG_INF("got GSV nmea message");
+			LOG_DBG("got GSV nmea message");
 			struct minmea_sentence_gsv gsv;
 			minmea_parse_gsv(&gsv, buf);
 			break;
 
 		case MINMEA_SENTENCE_GGA:
-			LOG_INF("got GGA nmea message");
+			LOG_DBG("got GGA nmea message");
 			struct minmea_sentence_gga gga;
 			minmea_parse_gga(&gga, buf);
 			fjalar->longitude = minmea_tocoord(&gga.longitude);
@@ -243,7 +243,7 @@ void handle_nmea(fjalar_t *fjalar, char *buf, int len) {
 			break;
 
 		case MINMEA_SENTENCE_RMC:
-			LOG_INF("got RMC nmea message");
+			LOG_DBG("got RMC nmea message");
 			struct minmea_sentence_rmc rmc;
 			minmea_parse_rmc(&rmc, buf);
 			fjalar->longitude = minmea_tocoord(&rmc.longitude);
@@ -251,7 +251,7 @@ void handle_nmea(fjalar_t *fjalar, char *buf, int len) {
 			break;
 
 		default:
-			LOG_INF("got unhandled nmea message \"%.*s\"", len, buf);
+			LOG_DBG("got unhandled nmea message \"%.*s\"", len, buf);
 			break;
 	}
 }

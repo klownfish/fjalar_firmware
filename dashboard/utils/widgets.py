@@ -66,10 +66,10 @@ class TextLastValue(tk.Label):
         self.root.after(REFRESH, self.update)
         if len(self.value[0]) == 0:
             return
-        # if type(self.value[1][-1]) == float:
-        #     self.stringVar.set(self.text + '%.6f' % self.value[1][-1])
-        # else:
-        self.stringVar.set(self.text + '%s' % self.value[1][-1])
+        if type(self.value[1][-1]) == float:
+            self.stringVar.set(self.text + '%.6f' % self.value[1][-1])
+        else:
+            self.stringVar.set(self.text + '%s' % self.value[1][-1])
 
 class ButtonFile(tk.Button):
     def __init__(self, root, **kwargs):

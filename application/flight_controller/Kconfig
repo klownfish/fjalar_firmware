@@ -51,3 +51,13 @@ config APP_COMMUNICATION_LOG_LEVEL
     int "Application filter log level"
     default 2
     depends on LOG
+
+
+# config USB_CDC_ACM_LOG_LEVEL
+#     int
+#     default 0 if USB_CDC_ACM_LOG_LEVEL_OFF
+#     default 1 if USB_CDC_ACM_LOG_LEVEL_ERR
+#     default 2 if USB_CDC_ACM_LOG_LEVEL_WRN
+#     default 3 if USB_CDC_ACM_LOG_LEVEL_INF
+#     default 4 if USB_CDC_ACM_LOG_LEVEL_DBG
+#     depends on LOG

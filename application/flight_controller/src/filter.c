@@ -63,7 +63,7 @@ float window_get_newest(window_t *filter) {
 
 void altitude_filter_init(altitude_filter_t *kf) {
     float process_noise = 0.001;
-    float measurement_noise = 10;
+    float baro_noise = 10;
     float accel_noise = 0.01;
 
     float P_init[9] = {
@@ -107,7 +107,7 @@ void altitude_filter_init(altitude_filter_t *kf) {
     memcpy(kf->K_data, K_init, sizeof(K_init));
 
     float R_init[9] = {
-        measurement_noise, 0, 0,
+        baro_noise, 0, 0,
         0, 0, 0,
         0, 0, accel_noise
     };
@@ -224,6 +224,7 @@ void altitude_filter_update_accel(altitude_filter_t *kf, float value, float acce
     zsl_mtx_mult(&Ht, &H_Pp_Ht_ADD_R_INV, &Ht_H_Pp_Ht_ADD_R_INV);
     zsl_mtx_mult(&Pp, &Ht_H_Pp_Ht_ADD_R_INV, &kf->K);
     // LOG_INF("K %f %f %f %f %f %f %f %f %f", kf->K_data[0],kf->K_data[1],kf->K_data[2],kf->K_data[3],kf->K_data[4],kf->K_data[5],kf->K_data[6],kf->K_data[7],kf->K_data[8]);
+
     // update state
     ZSL_MATRIX_DEF(H_Xp, 3, 1);
     zsl_mtx_mult(&H, &Xp, &H_Xp);

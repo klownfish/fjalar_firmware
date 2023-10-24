@@ -9,12 +9,12 @@
         external-uart = &uart1;
         io-led = &ioled;
         main-usb = &zephyr_udc0;
-        pyro0 = &pyro0;
         pyro1 = &pyro1;
         pyro2 = &pyro2;
-        pyro0-sense = &pyro0_sense;
+        pyro3 = &pyro3;
         pyro1-sense = &pyro1_sense;
         pyro2-sense = &pyro2_sense;
+        pyro3-sense = &pyro3_sense;
     };
 
     dummysensor: dummysensor {
@@ -31,26 +31,26 @@
 
     pyros {
         compatible = "gpio-leds";
-        pyro0: pyro_0 {
+        pyro1: pyro_1 {
             gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
         };
-        pyro1: pyro_1 {
+        pyro2: pyro_2 {
             gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
         };
-        pyro2: pyro_2 {
+        pyro3: pyro_3 {
             gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
         };
     };
 
 	pyro_sense {
 		compatible = "gpio-keys";
-		pyro0_sense: pyro0_sense {
+		pyro1_sense: pyro1_sense {
 			gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
 		};
-		pyro1_sense: pyro1_sense {
+		pyro2_sense: pyro2_sense {
 			gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
 		};
-		pyro2_sense: pyro2_sense {
+		pyro3_sense: pyro3_sense {
 			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
 		};
 	};

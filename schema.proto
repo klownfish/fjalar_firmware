@@ -33,14 +33,15 @@ message TelemetryPacket {
     float altitude = 1;
     float longitude = 2;
     float latitude = 3;
-    bool pyro0_connected = 4;
-    bool pyro1_connected = 5;
-    bool pyro2_connected = 6;
+    bool pyro1_connected = 4;
+    bool pyro2_connected = 5;
+    bool pyro3_connected = 6;
     FlightState flight_state = 7;
     float az = 10;
     float velocity = 11;
     float battery = 12;
     int32 flash_address = 13;
+    bool sudo = 14;
 }
 
 message GnssPosition {
@@ -81,16 +82,8 @@ message EnterIdle {
 
 }
 
-message PyrosEnabled {
-    bool pyro0 = 1;
-    bool pyro1 = 2;
-    bool pyro2 = 3;
-}
-
-message EnablePyros {
-    bool pyro0 = 1;
-    bool pyro1 = 2;
-    bool pyro2 = 3;
+message TriggerPyro {
+    int32 pyro = 1;
 }
 
 message FjalarData {
@@ -107,8 +100,7 @@ message FjalarData {
         FlashData flash_data = 11;
         ReadyUp ready_up = 12;
         EnterIdle enter_idle = 13;
-        EnablePyros enable_pyros = 14;
-        PyrosEnabled pyros_enabled = 15;
+        TriggerPyro trigger_pyro = 14;
     };
 }
 

@@ -39,6 +39,9 @@ typedef struct {
     float battery_voltage;
     float latitude;
     float longitude;
+    bool pyro1_sense;
+    bool pyro2_sense;
+    bool pyro3_sense;
 } fjalar_t;
 
 extern fjalar_t fjalar_god;

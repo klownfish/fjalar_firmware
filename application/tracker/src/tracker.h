@@ -14,13 +14,13 @@ enum screen_frames {
     FRAME_PYRO1,
     FRAME_PYRO2,
     FRAME_PYRO3,
+    FRAME_CLEAR_FLASH,
     FRAME_MAX
 };
 
 typedef struct {
     volatile enum screen_frames current_frame;
     volatile struct telemetry_packet telemetry;
-    volatile struct pyros_enabled pyros_enabled;
     volatile int32_t local_rssi;
     volatile float latitude;
     volatile float longitude;

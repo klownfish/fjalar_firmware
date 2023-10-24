@@ -43,14 +43,15 @@ typedef struct telemetry_packet {
     float altitude;
     float longitude;
     float latitude;
-    bool pyro0_connected;
     bool pyro1_connected;
     bool pyro2_connected;
+    bool pyro3_connected;
     flight_state_t flight_state;
     float az;
     float velocity;
     float battery;
     int32_t flash_address;
+    bool sudo;
 } telemetry_packet_t;
 
 typedef struct gnss_position {
@@ -92,17 +93,9 @@ typedef struct enter_idle {
     char dummy_field;
 } enter_idle_t;
 
-typedef struct pyros_enabled {
-    bool pyro0;
-    bool pyro1;
-    bool pyro2;
-} pyros_enabled_t;
-
-typedef struct enable_pyros {
-    bool pyro0;
-    bool pyro1;
-    bool pyro2;
-} enable_pyros_t;
+typedef struct trigger_pyro {
+    int32_t pyro;
+} trigger_pyro_t;
 
 typedef struct fjalar_data {
     pb_size_t which_data;
@@ -119,8 +112,7 @@ typedef struct fjalar_data {
         flash_data_t flash_data;
         ready_up_t ready_up;
         enter_idle_t enter_idle;
-        enable_pyros_t enable_pyros;
-        pyros_enabled_t pyros_enabled;
+        trigger_pyro_t trigger_pyro;
     } data;
 } fjalar_data_t;
 
@@ -158,12 +150,11 @@ extern "C" {
 
 
 
-
 /* Initializer values for message structs */
 #define ACKNOWLEDGE_INIT_DEFAULT                 {0}
 #define PRESSURE_READING_INIT_DEFAULT            {0}
 #define IMU_READING_INIT_DEFAULT                 {0, 0, 0, 0, 0, 0}
-#define TELEMETRY_PACKET_INIT_DEFAULT            {0, 0, 0, 0, 0, 0, _FLIGHT_STATE_MIN, 0, 0, 0, 0}
+#define TELEMETRY_PACKET_INIT_DEFAULT            {0, 0, 0, 0, 0, 0, _FLIGHT_STATE_MIN, 0, 0, 0, 0, 0}
 #define GNSS_POSITION_INIT_DEFAULT               {0, 0}
 #define GNSS_STATUS_INIT_DEFAULT                 {0, 0, 0, 0}
 #define SET_SUDO_INIT_DEFAULT                    {0}
@@ -172,14 +163,13 @@ extern "C" {
 #define FLASH_DATA_INIT_DEFAULT                  {0, {0, {0}}}
 #define READY_UP_INIT_DEFAULT                    {0}
 #define ENTER_IDLE_INIT_DEFAULT                  {0}
-#define PYROS_ENABLED_INIT_DEFAULT               {0, 0, 0}
-#define ENABLE_PYROS_INIT_DEFAULT                {0, 0, 0}
+#define TRIGGER_PYRO_INIT_DEFAULT                {0}
 #define FJALAR_DATA_INIT_DEFAULT                 {0, {ACKNOWLEDGE_INIT_DEFAULT}}
 #define FJALAR_MESSAGE_INIT_DEFAULT              {0, 0, false, FJALAR_DATA_INIT_DEFAULT}
 #define ACKNOWLEDGE_INIT_ZERO                    {0}
 #define PRESSURE_READING_INIT_ZERO               {0}
 #define IMU_READING_INIT_ZERO                    {0, 0, 0, 0, 0, 0}
-#define TELEMETRY_PACKET_INIT_ZERO               {0, 0, 0, 0, 0, 0, _FLIGHT_STATE_MIN, 0, 0, 0, 0}
+#define TELEMETRY_PACKET_INIT_ZERO               {0, 0, 0, 0, 0, 0, _FLIGHT_STATE_MIN, 0, 0, 0, 0, 0}
 #define GNSS_POSITION_INIT_ZERO                  {0, 0}
 #define GNSS_STATUS_INIT_ZERO                    {0, 0, 0, 0}
 #define SET_SUDO_INIT_ZERO                       {0}
@@ -188,8 +178,7 @@ extern "C" {
 #define FLASH_DATA_INIT_ZERO                     {0, {0, {0}}}
 #define READY_UP_INIT_ZERO                       {0}
 #define ENTER_IDLE_INIT_ZERO                     {0}
-#define PYROS_ENABLED_INIT_ZERO                  {0, 0, 0}
-#define ENABLE_PYROS_INIT_ZERO                   {0, 0, 0}
+#define TRIGGER_PYRO_INIT_ZERO                   {0}
 #define FJALAR_DATA_INIT_ZERO                    {0, {ACKNOWLEDGE_INIT_ZERO}}
 #define FJALAR_MESSAGE_INIT_ZERO                 {0, 0, false, FJALAR_DATA_INIT_ZERO}
 
@@ -205,14 +194,15 @@ extern "C" {
 #define TELEMETRY_PACKET_ALTITUDE_TAG            1
 #define TELEMETRY_PACKET_LONGITUDE_TAG           2
 #define TELEMETRY_PACKET_LATITUDE_TAG            3
-#define TELEMETRY_PACKET_PYRO0_CONNECTED_TAG     4
-#define TELEMETRY_PACKET_PYRO1_CONNECTED_TAG     5
-#define TELEMETRY_PACKET_PYRO2_CONNECTED_TAG     6
+#define TELEMETRY_PACKET_PYRO1_CONNECTED_TAG     4
+#define TELEMETRY_PACKET_PYRO2_CONNECTED_TAG     5
+#define TELEMETRY_PACKET_PYRO3_CONNECTED_TAG     6
 #define TELEMETRY_PACKET_FLIGHT_STATE_TAG        7
 #define TELEMETRY_PACKET_AZ_TAG                  10
 #define TELEMETRY_PACKET_VELOCITY_TAG            11
 #define TELEMETRY_PACKET_BATTERY_TAG             12
 #define TELEMETRY_PACKET_FLASH_ADDRESS_TAG       13
+#define TELEMETRY_PACKET_SUDO_TAG                14
 #define GNSS_POSITION_LONGITUDE_TAG              1
 #define GNSS_POSITION_LATITUDE_TAG               2
 #define GNSS_STATUS_FIX_TAG                      1
@@ -224,12 +214,7 @@ extern "C" {
 #define READ_FLASH_LENGTH_TAG                    2
 #define FLASH_DATA_START_INDEX_TAG               1
 #define FLASH_DATA_DATA_TAG                      2
-#define PYROS_ENABLED_PYRO0_TAG                  1
-#define PYROS_ENABLED_PYRO1_TAG                  2
-#define PYROS_ENABLED_PYRO2_TAG                  3
-#define ENABLE_PYROS_PYRO0_TAG                   1
-#define ENABLE_PYROS_PYRO1_TAG                   2
-#define ENABLE_PYROS_PYRO2_TAG                   3
+#define TRIGGER_PYRO_PYRO_TAG                    1
 #define FJALAR_DATA_ACKNOWLEDGE_TAG              1
 #define FJALAR_DATA_TELEMETRY_PACKET_TAG         2
 #define FJALAR_DATA_IMU_READING_TAG              3
@@ -242,8 +227,7 @@ extern "C" {
 #define FJALAR_DATA_FLASH_DATA_TAG               11
 #define FJALAR_DATA_READY_UP_TAG                 12
 #define FJALAR_DATA_ENTER_IDLE_TAG               13
-#define FJALAR_DATA_ENABLE_PYROS_TAG             14
-#define FJALAR_DATA_PYROS_ENABLED_TAG            15
+#define FJALAR_DATA_TRIGGER_PYRO_TAG             14
 #define FJALAR_MESSAGE_TIME_TAG                  1
 #define FJALAR_MESSAGE_SEQUENCE_NUMBER_TAG       2
 #define FJALAR_MESSAGE_DATA_TAG                  3
@@ -273,14 +257,15 @@ X(a, STATIC,   SINGULAR, FLOAT,    gz,                6)
 X(a, STATIC,   SINGULAR, FLOAT,    altitude,          1) \
 X(a, STATIC,   SINGULAR, FLOAT,    longitude,         2) \
 X(a, STATIC,   SINGULAR, FLOAT,    latitude,          3) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro0_connected,   4) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro1_connected,   5) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro2_connected,   6) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro1_connected,   4) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro2_connected,   5) \
+X(a, STATIC,   SINGULAR, BOOL,     pyro3_connected,   6) \
 X(a, STATIC,   SINGULAR, UENUM,    flight_state,      7) \
 X(a, STATIC,   SINGULAR, FLOAT,    az,               10) \
 X(a, STATIC,   SINGULAR, FLOAT,    velocity,         11) \
 X(a, STATIC,   SINGULAR, FLOAT,    battery,          12) \
-X(a, STATIC,   SINGULAR, INT32,    flash_address,    13)
+X(a, STATIC,   SINGULAR, INT32,    flash_address,    13) \
+X(a, STATIC,   SINGULAR, BOOL,     sudo,             14)
 #define TELEMETRY_PACKET_CALLBACK NULL
 #define TELEMETRY_PACKET_DEFAULT NULL
 
@@ -330,19 +315,10 @@ X(a, STATIC,   SINGULAR, BYTES,    data,              2)
 #define ENTER_IDLE_CALLBACK NULL
 #define ENTER_IDLE_DEFAULT NULL
 
-#define PYROS_ENABLED_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro0,             1) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro1,             2) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro2,             3)
-#define PYROS_ENABLED_CALLBACK NULL
-#define PYROS_ENABLED_DEFAULT NULL
-
-#define ENABLE_PYROS_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro0,             1) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro1,             2) \
-X(a, STATIC,   SINGULAR, BOOL,     pyro2,             3)
-#define ENABLE_PYROS_CALLBACK NULL
-#define ENABLE_PYROS_DEFAULT NULL
+#define TRIGGER_PYRO_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, INT32,    pyro,              1)
+#define TRIGGER_PYRO_CALLBACK NULL
+#define TRIGGER_PYRO_DEFAULT NULL
 
 #define FJALAR_DATA_FIELDLIST(X, a) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,acknowledge,data.acknowledge),   1) \
@@ -357,8 +333,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (data,read_flash,data.read_flash),  10) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,flash_data,data.flash_data),  11) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,ready_up,data.ready_up),  12) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (data,enter_idle,data.enter_idle),  13) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (data,enable_pyros,data.enable_pyros),  14) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (data,pyros_enabled,data.pyros_enabled),  15)
+X(a, STATIC,   ONEOF,    MESSAGE,  (data,trigger_pyro,data.trigger_pyro),  14)
 #define FJALAR_DATA_CALLBACK NULL
 #define FJALAR_DATA_DEFAULT NULL
 #define fjalar_data_t_data_acknowledge_MSGTYPE acknowledge_t
@@ -373,8 +348,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (data,pyros_enabled,data.pyros_enabled),  15)
 #define fjalar_data_t_data_flash_data_MSGTYPE flash_data_t
 #define fjalar_data_t_data_ready_up_MSGTYPE ready_up_t
 #define fjalar_data_t_data_enter_idle_MSGTYPE enter_idle_t
-#define fjalar_data_t_data_enable_pyros_MSGTYPE enable_pyros_t
-#define fjalar_data_t_data_pyros_enabled_MSGTYPE pyros_enabled_t
+#define fjalar_data_t_data_trigger_pyro_MSGTYPE trigger_pyro_t
 
 #define FJALAR_MESSAGE_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FIXED32,  time,              1) \
@@ -396,8 +370,7 @@ extern const pb_msgdesc_t read_flash_t_msg;
 extern const pb_msgdesc_t flash_data_t_msg;
 extern const pb_msgdesc_t ready_up_t_msg;
 extern const pb_msgdesc_t enter_idle_t_msg;
-extern const pb_msgdesc_t pyros_enabled_t_msg;
-extern const pb_msgdesc_t enable_pyros_t_msg;
+extern const pb_msgdesc_t trigger_pyro_t_msg;
 extern const pb_msgdesc_t fjalar_data_t_msg;
 extern const pb_msgdesc_t fjalar_message_t_msg;
 
@@ -414,15 +387,13 @@ extern const pb_msgdesc_t fjalar_message_t_msg;
 #define FLASH_DATA_FIELDS &flash_data_t_msg
 #define READY_UP_FIELDS &ready_up_t_msg
 #define ENTER_IDLE_FIELDS &enter_idle_t_msg
-#define PYROS_ENABLED_FIELDS &pyros_enabled_t_msg
-#define ENABLE_PYROS_FIELDS &enable_pyros_t_msg
+#define TRIGGER_PYRO_FIELDS &trigger_pyro_t_msg
 #define FJALAR_DATA_FIELDS &fjalar_data_t_msg
 #define FJALAR_MESSAGE_FIELDS &fjalar_message_t_msg
 
 /* Maximum encoded size of messages (where known) */
 #define ACKNOWLEDGE_SIZE                         2
 #define CLEAR_FLASH_SIZE                         0
-#define ENABLE_PYROS_SIZE                        6
 #define ENTER_IDLE_SIZE                          0
 #define FJALAR_DATA_SIZE                         79
 #define FJALAR_MESSAGE_SIZE                      97
@@ -431,11 +402,11 @@ extern const pb_msgdesc_t fjalar_message_t_msg;
 #define GNSS_STATUS_SIZE                         32
 #define IMU_READING_SIZE                         30
 #define PRESSURE_READING_SIZE                    5
-#define PYROS_ENABLED_SIZE                       6
 #define READY_UP_SIZE                            0
 #define READ_FLASH_SIZE                          22
 #define SET_SUDO_SIZE                            2
-#define TELEMETRY_PACKET_SIZE                    49
+#define TELEMETRY_PACKET_SIZE                    51
+#define TRIGGER_PYRO_SIZE                        11
 
 #ifdef __cplusplus
 } /* extern "C" */

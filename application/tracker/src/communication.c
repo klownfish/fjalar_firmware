@@ -12,7 +12,7 @@ LOG_MODULE_REGISTER(com, CONFIG_APP_COM_LOG_LEVEL);
 #define LORA_TRANSMIT 1
 #define LORA_RECEIVE 0
 
-#define LORA_THREAD_PRIORITY 7
+#define LORA_THREAD_PRIORITY 5 //bit banging causes button to lock...
 #define LORA_THREAD_STACK_SIZE 4096
 
 #define USB_THREAD_PRIORITY 7
@@ -93,12 +93,28 @@ void send_screen_command(tracker_t *tracker) {
             break;
         case FRAME_TELEMETRY:
             break;
-        case FRAME_PYRO1:
+
+		case FRAME_PYRO1:
+			msg.has_data = true;
+			msg.data.which_data = FJALAR_DATA_TRIGGER_PYRO_TAG;
+			msg.data.data.trigger_pyro.pyro = 1;
+			send_message(tracker, &msg);
             break;
-        case FRAME_PYRO2:
+
+		case FRAME_PYRO2:
+			msg.has_data = true;
+			msg.data.which_data = FJALAR_DATA_TRIGGER_PYRO_TAG;
+			msg.data.data.trigger_pyro.pyro = 2;
+			send_message(tracker, &msg);
             break;
+
         case FRAME_PYRO3:
-            break;
+			msg.has_data = true;
+			msg.data.which_data = FJALAR_DATA_TRIGGER_PYRO_TAG;
+			msg.data.data.trigger_pyro.pyro = 3;
+			send_message(tracker, &msg);
+			break;
+
         case FRAME_GET_READY:
 			msg.has_data = true;
 			msg.data.which_data = FJALAR_DATA_READY_UP_TAG;
@@ -112,7 +128,18 @@ void send_screen_command(tracker_t *tracker) {
             break;
 
         case FRAME_ENTER_SUDO:
+			msg.has_data = true;
+			msg.data.which_data = FJALAR_DATA_SET_SUDO_TAG;
+			msg.data.data.set_sudo.enabled = !tracker->telemetry.sudo;
+			send_message(tracker, &msg);
             break;
+
+		case FRAME_CLEAR_FLASH:
+			msg.has_data = true;
+			msg.data.which_data = FJALAR_DATA_CLEAR_FLASH_TAG;
+			send_message(tracker, &msg);
+			break;
+
         case FRAME_MAX:
             break;
 	}
@@ -134,9 +161,6 @@ void handle_fjalar_message(tracker_t *tracker, struct fjalar_message *msg) {
     switch (msg->data.which_data) {
         case FJALAR_DATA_TELEMETRY_PACKET_TAG:
             tracker->telemetry = msg->data.data.telemetry_packet;
-            break;
-        case FJALAR_DATA_PYROS_ENABLED_TAG:
-            tracker->pyros_enabled = msg->data.data.pyros_enabled;
             break;
         default:
 			LOG_DBG("Could not handle message with ID %d", msg->data.which_data);

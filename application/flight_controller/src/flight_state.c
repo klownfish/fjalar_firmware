@@ -189,39 +189,45 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             float az = window_get_median(&az_filter);
 
             if (fjalar->flight_state == STATE_LAUNCHPAD
-            || fjalar->flight_state == STATE_IDLE) {
+            || fjalar->flight_state == STATE_IDLE
+            ) {
                 vec3 measured_vector = {ax, ay, az};
                 vec3_normalize(measured_vector);
-                bool upside_down = false;
-                vec3 gravity_vector = {0, 0, 1};
-                float dot_product = vec3_mul_inner(gravity_vector, measured_vector);
-                if (dot_product < 0) {
-                    // The sensor is upside down
-                    dot_product = -dot_product;
-                    measured_vector[0] = -measured_vector[0];
-                    measured_vector[1] = -measured_vector[1];
-                    measured_vector[2] = -measured_vector[2];
-                    upside_down = true;
-                }
-                float angle_diff;
-                vec3 rotation_axis;
-                if (upside_down) {
-                    angle_diff = acosf(dot_product) + SENSOR_PI / 1000000;
-                } else {
-                    angle_diff = acosf(dot_product);
-                }
-                vec3_mul_cross_n(rotation_axis, gravity_vector, measured_vector);
-                float cos_theta2 = cosf(angle_diff / 2);
-                float sin_theta2 = sinf(angle_diff / 2);
-                vec3_mul_cross_n(rotation_axis, measured_vector, gravity_vector);
-                acc_correction_quat[0] = rotation_axis[0] * sin_theta2;
-                acc_correction_quat[1] = rotation_axis[1] * sin_theta2;
-                acc_correction_quat[2] = rotation_axis[2] * sin_theta2;
-                acc_correction_quat[3] = cos_theta2;
+                vec3 tmp_vec;
+                float x_rot_angle = atan2f(measured_vector[1], measured_vector[2]);
+                quat x_rot_quat = {
+                    sinf(x_rot_angle / 2),
+                    0,
+                    0,
+                    cosf(x_rot_angle / 2),
+                };
+                tmp_vec[0] = measured_vector[0];
+                tmp_vec[1] = measured_vector[1];
+                tmp_vec[2] = measured_vector[2];
+                quat_mul_vec3(measured_vector, x_rot_quat, tmp_vec);
+                vec3_normalize(measured_vector);
+
+                float y_rot_angle = -atan2f(measured_vector[0], measured_vector[2]); // why is this negative? only god knows
+                quat y_rot_quat = {
+                    0,
+                    sinf(y_rot_angle / 2),
+                    0,
+                    cosf(y_rot_angle / 2),
+                };
+                tmp_vec[0] = measured_vector[0];
+                tmp_vec[1] = measured_vector[1];
+                tmp_vec[2] = measured_vector[2];
+                LOG_DBG("x rot %f y rot %f", x_rot_angle, y_rot_angle);
+
+                acc_correction_quat[0] = 0;
+                acc_correction_quat[1] = 0;
+                acc_correction_quat[2] = 0;
+                acc_correction_quat[3] = 1;
+                quat tmp;
+                quat_mul(tmp, x_rot_quat, acc_correction_quat);
+                quat_normalize(tmp);
+                quat_mul(acc_correction_quat, y_rot_quat, tmp);
                 quat_normalize(acc_correction_quat);
-                vec3 acceleration_corrected;
-                vec3 acceleration = {ax, ay, az};
-                quat_mul_vec3(acceleration_corrected, acc_correction_quat, acceleration);
             }
             vec3 acceleration = {ax, ay, az};
             vec3 acceleration_corrected = {ax, ay, az};

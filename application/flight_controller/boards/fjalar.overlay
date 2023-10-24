@@ -9,12 +9,12 @@
         imu = &lsm6dso32;
         barometer = &ms5611;
 		main-usb = &usbotg_fs;
-		pyro0 = &pyro0;
 		pyro1 = &pyro1;
 		pyro2 = &pyro2;
-		pyro0-sense = &pyro0_sense;
+		pyro3 = &pyro3;
 		pyro1-sense = &pyro1_sense;
 		pyro2-sense = &pyro2_sense;
+		pyro3-sense = &pyro3_sense;
         data-usb = &cdc_acm_uart1;
     };
 
