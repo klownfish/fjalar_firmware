@@ -24,7 +24,7 @@ The project is built and managed using [West](https://docs.zephyrproject.org/lat
 
 **important** there is a bug in the used version of Zephyr. Before installing anything in the virtual environment you need to install a specific version of pillow `pip install pillow==9.4.0`.
 
-West can be installed through pip `pip install west`. (enable your virtual environment first if you have one). Then run `west init` in the root of this repository to make West fetch Zephyr RTOS and all required dependencies.
+West can be installed through pip `pip install west`. (enable your virtual environment first if you have one). Then run `west update` in the root of this repository to make West fetch Zephyr RTOS and all required dependencies.
 
 
 ### Flashing
