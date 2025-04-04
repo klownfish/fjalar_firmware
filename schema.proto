@@ -86,6 +86,19 @@ message TriggerPyro {
     int32 pyro = 1;
 }
 
+enum Events {
+    launch = 0;
+    burnout = 1;
+    apogee = 2;
+    main_deploy = 3;
+    drogue_deploy = 4;
+    touchdown = 5;
+}
+
+message EventHappened {
+    Events event;
+}
+
 message FjalarData {
     oneof data {
         Acknowledge acknowledge = 1;

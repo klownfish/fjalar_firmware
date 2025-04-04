@@ -74,23 +74,23 @@
 // 	msi-pll-mode;
 // };
 
-// &pll1 {
-// 	div-m = <3>;
-// 	mul-n = <10>;
-// 	div-q = <2>;
-// 	div-r = <1>;
-// 	clocks = <&clk_hse>;
-// 	status = "okay";
-// };
+&pll1 {
+	div-m = <3>;
+	mul-n = <10>;
+	div-q = <2>;
+	div-r = <1>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
 
-// &rcc {
-// 	clocks = <&pll1>;
-// 	clock-frequency = <DT_FREQ_M(160)>;
-// 	ahb-prescaler = <1>;
-// 	apb1-prescaler = <1>;
-// 	apb2-prescaler = <1>;
-// 	apb3-prescaler = <1>;
-// };
+&rcc {
+	clocks = <&pll1>;
+	clock-frequency = <DT_FREQ_M(160)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <1>;
+	apb2-prescaler = <1>;
+	apb3-prescaler = <1>;
+};
 
 &clk_hsi48 {
 	status = "okay";
@@ -106,23 +106,23 @@
 	msi-pll-mode;
 };
 
-&pll1 {
-	div-m = <1>;
-	mul-n = <80>;
-	div-q = <2>;
-	div-r = <2>;
-	clocks = <&clk_msis>;
-	status = "okay";
-};
+// &pll1 {
+// 	div-m = <1>;
+// 	mul-n = <80>;
+// 	div-q = <2>;
+// 	div-r = <2>;
+// 	clocks = <&clk_msis>;
+// 	status = "okay";
+// };
 
-&rcc {
-	clocks = <&pll1>;
-	clock-frequency = <DT_FREQ_M(160)>;
-	ahb-prescaler = <1>;
-	apb1-prescaler = <1>;
-	apb2-prescaler = <1>;
-	apb3-prescaler = <1>;
-};
+// &rcc {
+// 	clocks = <&pll1>;
+// 	clock-frequency = <DT_FREQ_M(160)>;
+// 	ahb-prescaler = <1>;
+// 	apb1-prescaler = <1>;
+// 	apb2-prescaler = <1>;
+// 	apb3-prescaler = <1>;
+// };
 
 &uart4 {
     pinctrl-0 = <&uart4_tx_pa0 &uart4_rx_pa1>;

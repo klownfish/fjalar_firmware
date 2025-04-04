@@ -10,6 +10,7 @@
 
 #include "fjalar.h"
 #include "commands.h"
+#include "communication.h"
 
 LOG_MODULE_REGISTER(communication, CONFIG_APP_COMMUNICATION_LOG_LEVEL);
 
@@ -77,12 +78,6 @@ K_MSGQ_DEFINE(uart_msgq, sizeof(struct padded_buf), 32, 4);
 K_MSGQ_DEFINE(flash_msgq, sizeof(struct padded_buf), 32, 4);
 K_MSGQ_DEFINE(usb_msgq, sizeof(struct padded_buf), 32, 4);
 K_MSGQ_DEFINE(lora_msgq, sizeof(struct padded_buf), 5, 4);
-
-
-enum message_priority {
-	MSG_PRIO_LOW,
-	MSG_PRIO_HIGH,
-};
 
 void init_communication(fjalar_t *fjalar) {
 	terminate_communication = false;
@@ -191,11 +186,11 @@ void send_message(fjalar_t *fjalar, fjalar_message_t *msg, enum message_priority
 				LOG_WRN("could not insert into uart msgq");
 			}
 			#endif
-			// #if DT_ALIAS_EXISTS(data_usb)
-			// if (k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT)) {
-			// 	LOG_INF("could not insert data usb msgq");
-			// }
-			// #endif
+			#if DT_ALIAS_EXISTS(data_usb)
+			if (k_msgq_put(&usb_msgq, &pbuf, K_NO_WAIT)) {
+				LOG_INF("could not insert data usb msgq");
+			}
+			#endif
 			break;
 
 		case MSG_PRIO_HIGH:

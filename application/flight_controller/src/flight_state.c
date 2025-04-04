@@ -1,6 +1,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/zbus/zbus.h>
 #include <math.h>
 #include <pla.h>
 
@@ -30,11 +31,10 @@ K_THREAD_STACK_DEFINE(flight_thread_stack, FLIGHT_THREAD_STACK_SIZE);
 struct k_thread flight_thread_data;
 k_tid_t flight_thread_id;
 
-// ZBUS_SUBSCRIBER_DEFINE(pressure_zobs, 1);
-// ZBUS_SUBSCRIBER_DEFINE(imu_zobs, 1);
+ZBUS_MSG_SUBSCRIBER_DEFINE(flight_sensors_zobs);
 
-// ZBUS_CHAN_ADD_OBS(pressure_zchan, pressure_zobs, 1);
-// ZBUS_CHAN_ADD_OBS(imu_zchan, imu_zobs, 1);
+ZBUS_CHAN_ADD_OBS(pressure_zchan, flight_sensors_zobs, 1);
+ZBUS_CHAN_ADD_OBS(imu_zchan, flight_sensors_zobs, 2);
 
 void init_flight_state(fjalar_t *fjalar) {
     flight_thread_id = k_thread_create(
@@ -155,15 +155,6 @@ void calc_imu_orientation_correction(const vec3 measured, quat result) {
 }
 
 void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
-    struct k_poll_event events[2] = {
-        K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
-                                        K_POLL_MODE_NOTIFY_ONLY,
-                                        &pressure_msgq),
-        K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
-                                        K_POLL_MODE_NOTIFY_ONLY,
-                                        &imu_msgq),
-    };
-
     fjalar->ground_level = 0;
     fjalar->ax = 0;
     fjalar->ay = 0;
@@ -182,13 +173,13 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
     window_init(&ax_filter, ax_window_data, IMU_WINDOW_SIZE);
     window_init(&ay_filter, ay_window_data, IMU_WINDOW_SIZE);
     window_init(&az_filter, az_window_data, IMU_WINDOW_SIZE);
-    struct pressure_queue_entry pressure;
-    struct imu_queue_entry imu;
 
-    // k_poll(&events[0], 1, K_FOREVER);
-    // k_poll(&events[1], 1, K_FOREVER);
-    events[0].state = K_POLL_STATE_NOT_READY;
-    events[1].state = K_POLL_STATE_NOT_READY;
+    union flight_sensor_message {
+        struct pressure_zbus_msg pressure;
+        struct imu_zbus_msg imu;
+    };
+    union flight_sensor_message msg;
+
     quat acc_correction_quat = {0, 0, 0, 1};
 
     #ifdef CONFIG_BOOT_STATE_LAUNCHPAD
@@ -198,19 +189,21 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
     fjalar->flight_state = STATE_IDLE;
     #endif
     while (true) {
-        if (k_poll(events, 2, K_MSEC(1000))) {
+        int ret;
+        const struct zbus_channel *received_zchan;
+        ret = zbus_sub_wait_msg(&flight_sensors_zobs, &received_zchan, &msg, K_MSEC(1000));
+        if (ret) {
             LOG_ERR("Stopped receiving measurements");
             continue;
         }
 
-        if (k_msgq_get(&pressure_msgq, &pressure, K_NO_WAIT) == 0) {
-            events[0].state = K_POLL_STATE_NOT_READY;
-            float raw_altitude = pressure_to_altitude(pressure.pressure);
+        if (received_zchan == &pressure_zchan) {
+            float raw_altitude = pressure_to_altitude(msg.pressure.pressure);
             if (fjalar->flight_state == STATE_LAUNCHPAD || fjalar->flight_state == STATE_BOOST
             || fjalar->flight_state == STATE_COAST) {
-                altitude_filter_update_accel(&altitude_filter, raw_altitude, fjalar->az - SENSOR_G / 1000000.0, pressure.t);
+                altitude_filter_update_accel(&altitude_filter, raw_altitude, fjalar->az - SENSOR_G / 1000000.0, msg.pressure.t);
             } else {
-                altitude_filter_update(&altitude_filter, raw_altitude, pressure.t);
+                altitude_filter_update(&altitude_filter, raw_altitude, msg.pressure.t);
             }
             fjalar->altitude = altitude_filter_get_altitude(&altitude_filter);
             fjalar->velocity = altitude_filter_get_velocity(&altitude_filter);
@@ -220,11 +213,11 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             LOG_DBG("Altitude relative %f raw %f", fjalar->altitude - fjalar->ground_level, raw_altitude);
             LOG_DBG("velocity %f", fjalar->velocity);
         }
-        if (k_msgq_get(&imu_msgq, &imu, K_NO_WAIT) == 0) {
-            events[1].state = K_POLL_STATE_NOT_READY;
-            window_insert(&ax_filter, imu.ax);
-            window_insert(&ay_filter, imu.ay);
-            window_insert(&az_filter, imu.az);
+
+        if (received_zchan == &imu_zchan) {
+            window_insert(&ax_filter, msg.imu.ax);
+            window_insert(&ay_filter, msg.imu.ay);
+            window_insert(&az_filter, msg.imu.az);
             float ax = window_get_median(&ax_filter);
             float ay = window_get_median(&ay_filter);
             float az = window_get_median(&az_filter);
@@ -236,7 +229,6 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             vec3 acceleration = {ax, ay, az};
             vec3 acceleration_corrected = {ax, ay, az};
             quat_mul_vec3(acceleration_corrected, acc_correction_quat, acceleration);
-            // vec3_scale(acceleration_corrected, acc_correction_scale);
             fjalar->ax = acceleration_corrected[0];
             fjalar->ay = acceleration_corrected[1];
             fjalar->az = acceleration_corrected[2];
@@ -246,6 +238,7 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
 
             LOG_DBG("Acceleration: %f %f %f", fjalar->ax, fjalar->ay, fjalar->az);
         }
+
         evaluate_state(fjalar);
         LOG_DBG("state %d", fjalar->flight_state);
         // k_msleep(1);

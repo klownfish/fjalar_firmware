@@ -7,7 +7,9 @@
 
 enum message_priority {
 	MSG_PRIO_LOW,
+	MSG_PRIO_MEDIUM,
 	MSG_PRIO_HIGH,
+	MSG_PRIO_MAX,
 };
 
 void init_communication(fjalar_t *fjalar);

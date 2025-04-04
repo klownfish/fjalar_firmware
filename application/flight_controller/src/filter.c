@@ -219,7 +219,13 @@ void altitude_filter_update_accel(altitude_filter_t *kf, float value, float acce
     ZSL_MATRIX_DEF(H_Pp_Ht_ADD_R, 3, 3);
     zsl_mtx_add(&H_Pp_Ht, &kf->R, &H_Pp_Ht_ADD_R);
     ZSL_MATRIX_DEF(H_Pp_Ht_ADD_R_INV, 3, 3);
-    zsl_mtx_inv_3x3(&H_Pp_Ht_ADD_R, &H_Pp_Ht_ADD_R_INV);
+
+    for (int i = 0; i < 9; i++) {
+        LOG_WRN("bajs %f", H_Pp_Ht_ADD_R.data[i]);
+    }
+    int e = zsl_mtx_inv_3x3(&H_Pp_Ht_ADD_R, &H_Pp_Ht_ADD_R_INV);
+    LOG_WRN("mtx_inv ret %d", e);
+
     ZSL_MATRIX_DEF(Ht_H_Pp_Ht_ADD_R_INV, 3, 3);
     zsl_mtx_mult(&Ht, &H_Pp_Ht_ADD_R_INV, &Ht_H_Pp_Ht_ADD_R_INV);
     zsl_mtx_mult(&Pp, &Ht_H_Pp_Ht_ADD_R_INV, &kf->K);

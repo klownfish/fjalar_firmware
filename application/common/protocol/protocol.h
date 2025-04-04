@@ -12,6 +12,7 @@ enum com_channels {
     COM_CHAN_EXT_UART,
     COM_CHAN_LORA,
     COM_CHAN_FLASH,
+    COM_CHAN_MAX,
 };
 
 enum protocol_states {
