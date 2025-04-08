@@ -1,0 +1,6 @@
+board:
+  name: fjalar
+  full_name: Fjalar Flightcontroller
+  vendor: vendor
+  socs:
+    - name: stm32u575xx

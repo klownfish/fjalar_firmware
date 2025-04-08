@@ -49,7 +49,7 @@
 &i2c1 {
 	lsm6dso32: lsm6dso32@6a {
 		status = "okay";
-		compatible = "st,lsm6dso32", "st,lsm6dso";
+		compatible = "st,lsm6dso32";
 		reg = <0x6a>;
 	};
 

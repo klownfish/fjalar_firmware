@@ -1,4 +1,3 @@
-board_runner_args(stm32cubeprogrammer "--erase" "--port=swd" "--reset-mode=hw")
 board_runner_args(stm32cubeprogrammer "--port=swd" "--reset-mode=hw")
 
 board_runner_args(openocd "--tcl-port=6666")

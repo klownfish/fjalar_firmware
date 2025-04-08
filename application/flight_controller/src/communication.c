@@ -428,7 +428,7 @@ struct lora_rx {
 
 K_MSGQ_DEFINE(lora_rx_msgq, sizeof(struct lora_rx), 5, 4);
 
-void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi, int8_t snr) {
+void lora_cb(const struct device *dev, uint8_t *buf, uint16_t size, int16_t rssi, int8_t snr, void *user) {
 	struct lora_rx rx;
 	rx.size = MIN(size, PROTOCOL_BUFFER_LENGTH);
 	memcpy(rx.buf, buf, rx.size);
@@ -462,7 +462,8 @@ void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
 		} else {
 			LOG_DBG("LoRa rxing");
 		}
-		lora_recv_async(lora_dev, lora_cb);
+		// TODO: The void user data was recently added, use this to pass data instead of the global variable
+		lora_recv_async(lora_dev, lora_cb, NULL);
 		// k_poll(&events[1], 2, K_MSEC(10000)); //poll only rx first to not interrupt messages
 		k_poll(events, 2, K_FOREVER);
 
@@ -478,7 +479,7 @@ void lora_thread(fjalar_t *fjalar, void* p2, void* p3) {
 		ret = k_msgq_get(&lora_msgq, &pbuf, K_NO_WAIT);
 		if (ret == 0) {
 			events[0].state = K_POLL_STATE_NOT_READY;
-			lora_recv_async(lora_dev, NULL);
+			lora_recv_async(lora_dev, NULL, NULL);
 			ret = lora_configure(lora_dev, LORA_TRANSMIT);
 			if (ret) {
 				LOG_ERR("LORA tx configure failed");
