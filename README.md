@@ -36,6 +36,8 @@ The tracker can be built and flashed using `west application/tracker -b t_echo -
 Run `west build application/flight_controller/ -p auto -b fjalar -t flash` to build and flash.
 
 ### Native simulation
-Both the tracker and flight firmware supports compiling for `native_sim_64` allowing you to run it natively. This only works on linux, if you are on Windows try using WSL 2 (WSL 1 doesn't work).
+Both the tracker and flight firmware supports compiling for `native_sim` allowing you to run it natively. This only works on linux, if you are on Windows try using WSL 2 (WSL 1 doesn't work).
 
-To run natively change the board to `-b native_sim_64` and use `-t run` instead of `-t flash`
+To run natively change the board to `-b native_sim` and use `-t run` instead of `-t flash`
+
+`west build application/flight_controller/ -p auto -b native_sim -t run`
