@@ -17,6 +17,7 @@
 #include "flight_state.h"
 #include "communication.h"
 #include "actuation.h"
+#include "hello.h"
 
 LOG_MODULE_REGISTER(main, CONFIG_APP_MAIN_LOG_LEVEL);
 
@@ -30,8 +31,11 @@ int main(void) {
 		k_msleep(1000);
 	}
 	#endif
-	fjalar_god.sudo = false;
 	printk("Started\n");
+	fjalar_god.sudo = false;
+	uint8_t cpp_buf[64];
+	hello_from_cpp(cpp_buf, sizeof(cpp_buf));
+	printk("%s", cpp_buf);
 	init_sensors(&fjalar_god);
 	init_flight_state(&fjalar_god);
 	init_communication(&fjalar_god);

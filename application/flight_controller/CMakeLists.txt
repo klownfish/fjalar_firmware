@@ -30,6 +30,7 @@ target_sources(app PRIVATE
     src/commands.c
     src/actuation.c
     src/filter.c
+    src/hello.cpp
 )
 
 if(TEST_BUILD)

@@ -53,13 +53,17 @@
 	status = "okay";
 };
 
+&clk_hse {
+	status = "okay";
+	clock-frequency = <DT_FREQ_M(48)>;
+};
+
 &clk_hsi48 {
 	status = "okay";
 };
 
-&clk_hse {
-	status = "okay";
-	clock-frequency = <DT_FREQ_M(48)>;
+&clk_lse {
+	status = "disabled";
 };
 
 &clk_msis {
@@ -71,8 +75,8 @@
 &pll1 {
 	div-m = <3>;
 	mul-n = <10>;
-	div-q = <2>;
 	div-r = <1>;
+	div-q = <2>;
 	clocks = <&clk_hse>;
 	status = "okay";
 };
@@ -145,7 +149,5 @@
 		 <&rcc STM32_SRC_PLL1_Q FDCAN1_SEL(1)>;
 	pinctrl-0 = <&fdcan1_rx_pb8 &fdcan1_tx_pb9>;
 	pinctrl-names = "default";
-	bus-speed = <125000>;
-	bus-speed-data = <1000000>;
 	status = "okay";
 };

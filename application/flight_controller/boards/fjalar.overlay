@@ -1,7 +1,7 @@
 / {
     chosen {
-        // zephyr,console = &cdc_acm_uart0;
-        // zephyr,shell = &cdc_acm_uart0;
+        zephyr,console = &cdc_acm_uart0;
+        zephyr,shell = &cdc_acm_uart0;
     };
 
     aliases {
@@ -15,12 +15,7 @@
 		pyro1-sense = &pyro1_sense;
 		pyro2-sense = &pyro2_sense;
 		pyro3-sense = &pyro3_sense;
-        // data-usb = &cdc_acm_uart1;
-    };
-
-    dummysensor: dummysensor {
-        compatible = "aesir,dummysensor";
-        status = "okay";
+        data-usb = &cdc_acm_uart1;
     };
 };
 
@@ -35,11 +30,11 @@
 };
 
 
-// &usbotg_fs {
-//     cdc_acm_uart0: cdc_acm_uart0 {
-//         compatible = "zephyr,cdc-acm-uart";
-//     };
-//     cdc_acm_uart1: cdc_acm_uart1 {
-//         compatible = "zephyr,cdc-acm-uart";
-//     };
-// };
+&usbotg_fs {
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+    cdc_acm_uart1: cdc_acm_uart1 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};

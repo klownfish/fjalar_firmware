@@ -1,0 +1,1 @@
+extern void hello_from_cpp(char* buffer, int buffer_size);
